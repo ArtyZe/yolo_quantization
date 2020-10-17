@@ -1,0 +1,5 @@
+classes= 5
+train  = /home/artyze/BechMark/NOK/2007_test.txt
+valid  = /home/artyze/BechMark/NOK/2007_test.txt
+names = /home/artyze/BechMark/NOK/voc.names
+backup = backup
