@@ -12,7 +12,7 @@ void gemm_nn_int8_int32(int M, int N, int K, int8_t ALPHA,
     int8_t *B, int ldb,
     int32_t *C, int ldc);
 
-void gemm_nn_uint8_int32(int M, int N, int K, float ALPHA, 
+void gemm_nn_uint8_int32_te(int M, int N, int K, float ALPHA, 
         uint8_t *A, int lda, 
         uint8_t *B, int ldb,
         int32_t *C, int ldc);
@@ -22,10 +22,10 @@ void gemm_nn_uint8_uint32(int M, int N, int K, float ALPHA,
         uint8_t *B, int ldb,
         uint32_t *C, int ldc);
 
-void gemm_nn_uint8_uint32_register(int M, int N, int K, uint8_t ALPHA,
+void gemm_nn_uint8_int32_register(int M, int N, int K, uint8_t ALPHA,
     uint8_t *A, int lda,
     uint8_t *B, int ldb,
-    uint32_t *C, int ldc);
+    int32_t *C, int ldc);
 
 void gemm_nn(int M, int N, int K, float ALPHA, 
         float *A, int lda, 

@@ -99,11 +99,9 @@ extern "C" void forward_maxpool_layer_gpu(maxpool_layer l, network net)
         cuda_pull_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
         uint8_t input_fake_quant = 0;
         fake_quant_with_min_max_channel(1, l.output, &input_fake_quant, l.out_c*l.out_w*l.out_h, l.min_activ_value, l.max_activ_value, 
-                                        l.activ_data_uint8_scales, l.activ_data_int8_zero_point, ACTIV_QUANT, 0.999);
+                                        l.activ_data_uint8_scales, l.activ_data_uint8_zero_point, ACTIV_QUANT, 0.999);
         assert(l.activ_data_uint8_scales[0] > 0);
         cuda_push_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
-        cuda_push_array(l.activ_data_int8_scales_gpu, l.activ_data_uint8_scales, 1);
-        cuda_push_array_int8(l.activ_data_int8_zero_point_gpu, l.activ_data_int8_zero_point, 1);
     }
 }
 

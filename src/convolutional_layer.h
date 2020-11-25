@@ -6,6 +6,8 @@
 #include "activations.h"
 #include "layer.h"
 #include "network.h"
+#include "assert.h"
+#include "gemm.h"
 
 typedef layer convolutional_layer;
 
@@ -32,6 +34,8 @@ void resize_convolutional_layer(convolutional_layer *layer, int w, int h);
 void forward_convolutional_layer_nobn(convolutional_layer l, network net);
 void forward_convolutional_layer_quant_inputf_outputf(convolutional_layer l, network net);
 void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, network net);
+void forward_convolutional_layer_quant_inputi_outputi_mkl(convolutional_layer l, network net);
+void forward_convolutional_layer_quant_inputi_outputi_cblas(convolutional_layer l, network net);
 void forward_convolutional_layer(const convolutional_layer layer, network net);
 void update_convolutional_layer(convolutional_layer layer, update_args a);
 image *visualize_convolutional_layer(convolutional_layer layer, char *window, image *prev_weights);

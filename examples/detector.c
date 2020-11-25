@@ -761,14 +761,20 @@ void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float 
 /*     fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
     srand(time(0)); */
 
-    list *plist = get_paths("/home/artyze/BechMark/NOK/2007_val.txt");
+    list *plist = get_paths("/workspace/ygao/benchmark/NOK/2007_test.txt");
     char **paths = (char **)list_to_array(plist);
-    int flag = 0;
+    int flag = 1;
     network *net;
 
     net = load_network(cfgfile, weightfile, close_quantization);
     set_batch_network(net, 1);
-    
+#ifdef QUANTIZATION
+#ifndef GPU
+    printf("\nQuantinization ...\n");
+    quantization_weights_and_activations(net);
+    printf("Quantinization Complete...\n\n"); 
+#endif
+#endif
     int j, k;
 
     int m = plist->size;
@@ -783,7 +789,8 @@ void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float 
     int TP = 0;
     int proposals = 0;
     float avg_iou = 0;
-
+    image im, sized;
+    layer l;
     for(i = 0; i < m; ++i){
         //network *net = load_network(cfgfile, weightfile, 0);
         if(flag == 1){
@@ -791,14 +798,27 @@ void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float 
             net = load_network(cfgfile, weightfile, 0);
             set_batch_network(net, 1);
         }
+#ifdef QUANTIZATION
+#ifndef GPU
+        printf("\nQuantinization ...\n");
+        quantization_weights_and_activations(net);
+        printf("Quantinization Complete...\n\n"); 
+#endif
+#endif
         char *path = paths[i];
-        image orig = load_image_color(path, 0, 0);
-        image sized = resize_image(orig, net->w, net->h);
-        char *id = basecfg(path);
-        network_predict(net, sized.data);
+        l = net->layers[net->n-1];
+
+        im = load_image_color(path,0,0);
+        sized = letterbox_image(im, net->w, net->h);
+        float *X = sized.data;
+        network_predict(net, X);
         int nboxes = 0;
-        detection *dets = get_network_boxes(net, sized.w, sized.h, thresh, .5, 0, 1, &nboxes);
-        if (nms) do_nms_obj(dets, nboxes, 1, nms);
+        detection *dets = get_network_boxes(net, im.w, im.h, thresh, hier_thresh, 0, 1, &nboxes);
+        printf("%d\n", nboxes);
+        printf("-----------------------\n");
+        //if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
+        if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
+        free_detections(dets, nboxes);
 
         char labelpath[4096];
         find_replace(path, "images", "labels", labelpath);
@@ -813,7 +833,7 @@ void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float 
                 ++proposals;
             }
         }
-        // printf("number of boxes:%d\n",nboxes);
+        printf("number of boxes:%d\n",nboxes);
         for(k = 0; k < nboxes; ++k){
             TP_FP++;
         }
@@ -833,13 +853,12 @@ void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float 
                 ++TP;
             }
         }
-
         fprintf(stderr, "%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tRecall:%.2f%%\n", i, TP, TP_FN, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*TP/TP_FN);
         fprintf(stderr, "%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tPrecision:%.2f%%\n", i, TP, TP_FP, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*TP/TP_FP);
         fprintf(stderr, "%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tF1:%.2f%%\n\n", i, TP, (TP_FN+TP_FP)/2, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*2*TP/(TP_FP+TP_FN));
-        free(id);
-        free_image(orig);
-        free_image(sized);
+        // free(id);
+        // free_image(im);
+        // free_image(sized);
     }
 }
 
@@ -864,6 +883,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
     char buff[256];
     char *input = buff;
     float nms=.45;
+    int id = 0;
     while(1){
         if(filename){
             strncpy(input, filename, 256);
@@ -890,7 +910,8 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         printf("%s: Predicted in %f seconds.\n", input, what_time_is_it_now()-time);
         int nboxes = 0;
         detection *dets = get_network_boxes(net, im.w, im.h, thresh, hier_thresh, 0, 1, &nboxes);
-        //printf("%d\n", nboxes);
+        printf("%d\n", nboxes);
+        printf("-----------------------\n");
         //if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
         if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
         draw_detections(im, dets, nboxes, thresh, names, alphabet, l.classes);
@@ -909,6 +930,8 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         free_image(im);
         free_image(sized);
         if (filename) break;
+        id++;
+        // if (id > 5) break;
     }
 }
 

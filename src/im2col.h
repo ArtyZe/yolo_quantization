@@ -9,6 +9,10 @@ void im2col_cpu_uint8(uint8_t* data_im,
     int channels, int height, int width,
     int ksize, int stride, int pad, uint8_t* data_col);
 
+void im2col_cpu_int16(int16_t* data_im,
+    int channels, int height, int width,
+    int ksize, int stride, int pad, int16_t* data_col);
+
 float im2col_get_pixel(float *im, int height, int width, int channels,
                         int row, int col, int channel, int pad);
 

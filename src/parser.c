@@ -194,9 +194,10 @@ convolutional_layer parse_convolutional(list *options, size_params params, int c
     int quant_stop_flag = option_find_int_quiet(options, "quant_stop", 0);
 
     convolutional_layer layer = make_convolutional_layer(batch,h,w,c,n,groups,size,stride,padding,activation, batch_normalize, 
-                                                         binary, quant_stop_flag, xnor, 0, layer_quant_flag);
+                                                         binary, quant_stop_flag, xnor, params.close_quantization, layer_quant_flag);
     layer.flipped = option_find_int_quiet(options, "flipped", 0);
     layer.dot = option_find_float_quiet(options, "dot", 0);
+    layer.fisrt_time_train_fag = option_find_int_quiet(options, "first_time", 0);
     layer.count = count;
 
     return layer;
@@ -424,6 +425,7 @@ maxpool_layer parse_maxpool(list *options, size_params params, int count)
     int quant_stop_flag = option_find_int_quiet(options, "quant_stop", 0);
 
     maxpool_layer layer = make_maxpool_layer(batch,h,w,c,size,stride,padding, layer_quant_flag, quant_stop_flag);
+    layer.fisrt_time_train_fag = option_find_int_quiet(options, "first_time", 0);
     layer.count = count;
     return layer;
 }
@@ -505,9 +507,12 @@ layer parse_upsample(list *options, size_params params, network *net, int count)
 {
 
     int stride = option_find_int(options, "stride",2);
-    layer l = make_upsample_layer(params.batch, params.w, params.h, params.c, stride);
+    int layer_quant_flag = option_find_int_quiet(options, "quantized", 0);
+    int quant_stop_flag = option_find_int_quiet(options, "quant_stop", 0);
+    layer l = make_upsample_layer(params.batch, params.w, params.h, params.c, stride, layer_quant_flag, quant_stop_flag);
     l.scale = option_find_float_quiet(options, "scale", 1);
     l.count = count;
+    l.fisrt_time_train_fag = option_find_int_quiet(options, "first_time", 0);
     return l;
 }
 
@@ -552,7 +557,7 @@ route_layer parse_route(list *options, size_params params, network *net, int cou
             layer.out_h = layer.out_w = layer.out_c = 0;
         }
     }
-
+    layer.fisrt_time_train_fag = option_find_int_quiet(options, "first_time", 0);
     return layer;
 }
 
@@ -888,13 +893,15 @@ void save_convolutional_weights(layer l, FILE *fp)
         fwrite(l.rolling_variance, sizeof(float), l.n, fp);
     }
 #ifdef QUANTIZATION
-    printf("--- save input sacle = %f, z = %d\n", l.input_data_uint8_scales[0], l.input_data_int8_zero_point[0]);
+    printf("layer%d --- save input sacle = %f, z = %d\n", l.count, l.input_data_uint8_scales[0], l.input_data_uint8_zero_point[0]);
+    printf("layer%d --- save weigt sacle = %f, z = %d\n", l.count, l.weight_data_uint8_scales[0], l.weight_data_uint8_zero_point[0]);
+    printf("layer%d --- save activ sacle = %f, z = %d\n", l.count, l.activ_data_uint8_scales[0], l.activ_data_uint8_zero_point[0]);
     fwrite(l.input_data_uint8_scales, sizeof(float), 1, fp);
-    fwrite(l.input_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fwrite(l.input_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     fwrite(l.activ_data_uint8_scales, sizeof(float), 1, fp);
-    fwrite(l.activ_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fwrite(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     fwrite(l.weight_data_uint8_scales, sizeof(float), 1, fp);
-    fwrite(l.weight_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fwrite(l.weight_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     fwrite(l.weights_uint8, sizeof(uint8_t), l.c*l.n*l.size*l.size, fp);
     // printf("weight quant value is %d\n", l.weights_uint8[20]);
 #endif
@@ -904,14 +911,21 @@ void save_convolutional_weights(layer l, FILE *fp)
 void save_maxpool_weights(layer l, FILE *fp)
 {
     fwrite(l.activ_data_uint8_scales, sizeof(float), 1, fp);
-    fwrite(l.activ_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fwrite(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     // printf("scale is %f\n", *l.activ_data_uint8_scales);
 }
 
 void save_route_weights(layer l, FILE *fp)
 {
-    // fwrite(l.activ_data_uint8_scales, sizeof(float), 1, fp);
-    // fwrite(l.activ_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fwrite(l.activ_data_uint8_scales, sizeof(float), 1, fp);
+    fwrite(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
+    // printf("scale is %f\n", *l.activ_data_uint8_scales);
+}
+
+void save_upsample_weights(layer l, FILE *fp)
+{
+    fwrite(l.activ_data_uint8_scales, sizeof(float), 1, fp);
+    fwrite(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     // printf("scale is %f\n", *l.activ_data_uint8_scales);
 }
 
@@ -973,8 +987,10 @@ void save_weights_upto(network *net, char *filename, int cutoff)
 #ifdef QUANTIZATION
         } if(l.type == MAXPOOL){
             save_maxpool_weights(l, fp);
-        } if(l.type == ROUTE){
-            save_route_weights(l, fp);
+        // } if(l.type == ROUTE && l.layer_quant_flag && l.n > 1){
+        //     save_route_weights(l, fp);
+        } if(l.type == UPSAMPLE && l.layer_quant_flag){
+            save_upsample_weights(l, fp);
 #endif
         } if(l.type == BATCHNORM){
             save_batchnorm_weights(l, fp);
@@ -1106,7 +1122,7 @@ void load_convolutional_weights_binary(layer l, FILE *fp)
 #endif
 }
 
-void load_convolutional_weights(layer l, FILE *fp)
+void load_convolutional_weights(layer l, FILE *fp, network *net, int index)
 {
     if(l.binary){
         //load_convolutional_weights_binary(l, fp);
@@ -1122,13 +1138,26 @@ void load_convolutional_weights(layer l, FILE *fp)
     }
 #ifdef QUANTIZATION
     fread(l.input_data_uint8_scales, sizeof(float), 1, fp);
-    fread(l.input_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fread(l.input_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     fread(l.activ_data_uint8_scales, sizeof(float), 1, fp);
-    fread(l.activ_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fread(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     fread(l.weight_data_uint8_scales, sizeof(float), 1, fp);
-    fread(l.weight_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fread(l.weight_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     fread(l.weights_uint8, sizeof(uint8_t), l.c*l.n*l.size*l.size, fp);
-    // printf("weight quant value is %d\n", *l.input_data_int8_zero_point);
+    printf("layer%d --- load input sacle = %f, z = %d\n", l.count, l.input_data_uint8_scales[0], l.input_data_uint8_zero_point[0]);
+    printf("layer%d --- load weigt sacle = %f, z = %d\n", l.count, l.weight_data_uint8_scales[0], l.weight_data_uint8_zero_point[0]);
+    printf("layer%d --- load activ sacle = %f, z = %d\n", l.count, l.activ_data_uint8_scales[0], l.activ_data_uint8_zero_point[0]);
+    // if(l.activ_data_uint8_scales[0]){
+    //     // l.min_input_value[0] = (QUANT_NEGATIVE_LIMIT - l.input_data_uint8_zero_point[0]) * l.input_data_uint8_scales[0];
+    //     // l.max_input_value[0] = (QUANT_POSITIVE_LIMIT - l.input_data_uint8_zero_point[0]) * l.input_data_uint8_scales[0];
+    //     l.min_activ_value[0] = (QUANT_NEGATIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+    //     l.max_activ_value[0] = (QUANT_POSITIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+    //     // printf("weight quant value is %d\n", *l.input_data_uint8_zero_point);
+    // }else if(index > 1){
+    //     l.min_activ_value[0] = net->layers[index-1].min_activ_value[0];
+    //     l.max_activ_value[0] = net->layers[index-1].max_activ_value[0];
+    // }
+
 #endif
     fread(l.weights, sizeof(float), num, fp);
     if (l.flipped) {
@@ -1141,19 +1170,58 @@ void load_convolutional_weights(layer l, FILE *fp)
 #endif
 }
 
-void load_maxpool_weights(layer l, FILE *fp)
+void load_maxpool_weights(layer l, FILE *fp, network *net, int index)
 {
     fread(l.activ_data_uint8_scales, sizeof(float), 1, fp);
-    fread(l.activ_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    fread(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
+    if(l.activ_data_uint8_scales[0] && net->train){
+        l.min_activ_value[0] = (QUANT_NEGATIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+        l.max_activ_value[0] = (QUANT_POSITIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+        // printf("--- load activ sacle = %f, z = %d\n", l.activ_data_uint8_scales[0], l.activ_data_uint8_zero_point[0]);
+    }else if(index > 1 && net->train){
+        l.min_activ_value[0] = net->layers[index-1].min_activ_value[0];
+        l.max_activ_value[0] = net->layers[index-1].max_activ_value[0];
+    }
 }
 
-void load_route_weights(layer l, FILE *fp)
+void load_route_weights(layer l, FILE *fp, network *net)
 {
-    // fread(l.activ_data_uint8_scales, sizeof(float), 1, fp);
-    // fread(l.activ_data_int8_zero_point, sizeof(uint8_t), 1, fp);
+    // if(l.n > 1 && !l.fisrt_time_train_fag){
+    //     fread(l.activ_data_uint8_scales, sizeof(float), 1, fp);
+    //     fread(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
+    // }else{
+    //     l.activ_data_uint8_scales[0] = net->layers[l.input_layers[0]].activ_data_uint8_scales[0];
+    //     l.activ_data_uint8_zero_point[0] = net->layers[l.input_layers[0]].activ_data_uint8_zero_point[0];
+    // }
+    l.activ_data_uint8_scales[0] = net->layers[l.input_layers[0]].activ_data_uint8_scales[0];
+    l.activ_data_uint8_zero_point[0] = net->layers[l.input_layers[0]].activ_data_uint8_zero_point[0];
+
+    // if(l.activ_data_uint8_scales[0] && net->train){
+    //     l.min_activ_value[0] = (QUANT_NEGATIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+    //     l.max_activ_value[0] = (QUANT_POSITIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+    //     // printf("--- load activ sacle = %f, z = %d\n", l.activ_data_uint8_scales[0], l.activ_data_uint8_zero_point[0]);
+    // }else{
+    //     convolutional_layer src_layer = net->layers[l.input_layers[0]];
+    //     l.min_activ_value[0] = src_layer.min_activ_value[0];
+    //     l.max_activ_value[0] = src_layer.max_activ_value[0];
+    // }
 }
 
-
+void load_upsample_weights(layer l, FILE *fp, network *net, int index)
+{
+    if(!l.fisrt_time_train_fag){
+        fread(l.activ_data_uint8_scales, sizeof(float), 1, fp);
+        fread(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
+    }
+    if(l.activ_data_uint8_scales[0] && net->train){
+        l.min_activ_value[0] = (QUANT_NEGATIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+        l.max_activ_value[0] = (QUANT_POSITIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+        // printf("--- load activ sacle = %f, z = %d\n", l.activ_data_uint8_scales[0], l.activ_data_uint8_zero_point[0]);
+    }else if(index > 1 && net->train){
+        l.min_activ_value[0] = net->layers[index-1].min_activ_value[0];
+        l.max_activ_value[0] = net->layers[index-1].max_activ_value[0];
+    }
+}
 
 void load_weights_upto(network *net, char *filename, int start, int cutoff)
 {
@@ -1187,26 +1255,29 @@ void load_weights_upto(network *net, char *filename, int start, int cutoff)
         layer l = net->layers[i];
         if (l.dontload) continue;
         if(l.type == CONVOLUTIONAL || l.type == DECONVOLUTIONAL){
-            load_convolutional_weights(l, fp);
+            load_convolutional_weights(l, fp, net, i);
         }
         if(l.type == CONNECTED){
             load_connected_weights(l, fp, transpose);
         }
 #ifdef QUANTIZATION
         if(l.type == MAXPOOL){
-            load_maxpool_weights(l, fp);
+            load_maxpool_weights(l, fp, net, i);
         }
-        if(l.type == ROUTE){
-            load_route_weights(l, fp);
+        if(l.type == ROUTE && l.layer_quant_flag){      // next train loop, just comment it
+            load_route_weights(l, fp, net);
+        }
+        if(l.type == UPSAMPLE && l.layer_quant_flag){
+            load_upsample_weights(l, fp, net, i);
         }
 #endif
         if(l.type == BATCHNORM){
             load_batchnorm_weights(l, fp);
         }
         if(l.type == CRNN){
-            load_convolutional_weights(*(l.input_layer), fp);
-            load_convolutional_weights(*(l.self_layer), fp);
-            load_convolutional_weights(*(l.output_layer), fp);
+            load_convolutional_weights(*(l.input_layer), fp, net, i);
+            load_convolutional_weights(*(l.self_layer), fp, net, i);
+            load_convolutional_weights(*(l.output_layer), fp, net, i);
         }
         if(l.type == RNN){
             load_connected_weights(*(l.input_layer), fp, transpose);

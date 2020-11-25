@@ -59,7 +59,7 @@ void gemm_nn_uint8_uint32(int M, int N, int K, float ALPHA,
         }
 }
 
-void gemm_nn_uint8_int32(int M, int N, int K, float ALPHA, 
+void gemm_nn_uint8_int32_te(int M, int N, int K, float ALPHA, 
         uint8_t *A, int lda, 
         uint8_t *B, int ldb,
         int32_t *C, int ldc)
@@ -99,10 +99,10 @@ void gemm_nn_int8_int32(int M, int N, int K, int8_t ALPHA,
 }
 
 // 0.89 sec
-void gemm_nn_uint8_uint32_register(int M, int N, int K, uint8_t ALPHA,
+void gemm_nn_uint8_int32_register(int M, int N, int K, uint8_t ALPHA,
     uint8_t *A, int lda,
     uint8_t *B, int ldb,
-    uint32_t *C, int ldc)
+    int32_t *C, int ldc)
 {
     __m256i multyplied_i32, res;
     __m256i a, b, d;

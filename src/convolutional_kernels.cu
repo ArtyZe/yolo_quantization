@@ -116,7 +116,6 @@ void forward_convolutional_layer_quant_gpu(convolutional_layer l, network net)
 //    fold the batch norm parameters
 //////////////////////////////////////////////////////////////////
     if(net.train && l.batch_normalize && l.layer_quant_flag){
-    // if(l.batch_normalize){
         fill_gpu(l.outputs*l.batch, 0, l.output_bn_backup_gpu, 1);
 
         int i1, j1;
@@ -140,29 +139,28 @@ void forward_convolutional_layer_quant_gpu(convolutional_layer l, network net)
         }
     }
     // flod batchnorm with conv
-    if(l.batch_normalize &&  train_quant_flag){ 
+    if(l.batch_normalize && l.layer_quant_flag){ 
         forward_batchnorm_layer_quant_gpu(l, net);
     }
-
     if(net.train && l.layer_quant_flag){
         float min_weights_value = 0;
         float max_weights_value = 1;
         // calculate input quantization scale and zeropoint s1, z1
         cuda_pull_array(l.weights_gpu, l.weights, l.c*l.n*l.size*l.size);
         cuda_pull_array(net.input_gpu, net.input, l.c*l.w*l.h);
-        if(l.count == 0){
+        if(l.count == 0 || net.layers[l.count-1].type == ROUTE){
             fake_quant_with_min_max_channel(1, net.input, l.weights_uint8, l.c*l.w*l.h, l.min_input_value, l.max_input_value, 
-                l.input_data_uint8_scales, l.input_data_int8_zero_point, INPUT_QUANT, 0.9);
+                l.input_data_uint8_scales, l.input_data_uint8_zero_point, INPUT_QUANT, 0.9);
             assert(l.input_data_uint8_scales[0] > 0);
         }
 
         // calculate weights quantization scale and zeropoint s2, z2
         fake_quant_with_min_max_channel(1, l.weights, l.weights_uint8, l.n*l.c*l.size*l.size, &min_weights_value, &max_weights_value, 
-                                   l.weight_data_uint8_scales, l.weight_data_int8_zero_point, WEIGHT_QUANT, 0.9);
+                                   l.weight_data_uint8_scales, l.weight_data_uint8_zero_point, WEIGHT_QUANT, 0.9);
         assert(l.weight_data_uint8_scales[0] > 0);
         cuda_push_array(l.weights_gpu, l.weights, l.c*l.n*l.size*l.size);
-        cuda_push_array(l.weight_data_int8_scales_gpu, l.weight_data_uint8_scales, 1);
-        cuda_push_array_int8(l.weight_data_int8_zero_point_gpu, l.weight_data_int8_zero_point, 1);
+        // cuda_push_array(l.weight_data_uint8_scales_gpu, l.weight_data_uint8_scales, 1);
+        // cuda_push_array_int8(l.weight_data_uint8_zero_point_gpu, l.weight_data_uint8_zero_point, 1);
         cuda_push_array_int8(l.weights_quant_gpu, l.weights_uint8, l.c*l.n*l.size*l.size);
     }   
 #endif
@@ -192,7 +190,7 @@ void forward_convolutional_layer_quant_gpu(convolutional_layer l, network net)
         add_bias_gpu(l.output_gpu, l.biases_gpu, l.batch, l.n, l.out_w*l.out_h);
     }
 #else
-    if (l.batch_normalize && !train_quant_flag) {
+    if (l.batch_normalize && !l.layer_quant_flag) {
         forward_batchnorm_layer_gpu(l, net);
     }else{
         add_bias_gpu(l.output_gpu, l.biases_gpu, l.batch, l.n, l.out_w*l.out_h);
@@ -206,12 +204,11 @@ void forward_convolutional_layer_quant_gpu(convolutional_layer l, network net)
         cuda_pull_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
         uint8_t input_fake_quant = 0;
         fake_quant_with_min_max_channel(1, l.output, &input_fake_quant, l.out_c*l.out_w*l.out_h, l.min_activ_value, l.max_activ_value, 
-                                        l.activ_data_uint8_scales, l.activ_data_int8_zero_point, ACTIV_QUANT, 0.999);
+                                        l.activ_data_uint8_scales, l.activ_data_uint8_zero_point, ACTIV_QUANT, 0.999);
         assert(l.activ_data_uint8_scales[0] > 0);
         cuda_push_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
-        // printf("scale is %f\n", *l.activ_data_uint8_scales);
-        cuda_push_array(l.activ_data_int8_scales_gpu, l.activ_data_uint8_scales, 1);
-        cuda_push_array_int8(l.activ_data_int8_zero_point_gpu, l.activ_data_int8_zero_point, 1);	
+        // cuda_push_array(l.activ_data_uint8_scales_gpu, l.activ_data_uint8_scales, 1);
+        // cuda_push_array_int8(l.activ_data_uint8_zero_point_gpu, l.activ_data_uint8_zero_point, 1);	
     }
     
 }
@@ -318,7 +315,7 @@ void backward_convolutional_layer_gpu(convolutional_layer l, network net)
     }
    
 #ifdef QUANTIZATION  
-    if(l.batch_normalize && train_quant_flag){
+    if(l.batch_normalize && l.layer_quant_flag){
         backward_batchnorm_layer_quant_gpu(l, net);
     }
 #endif
@@ -330,13 +327,13 @@ void pull_convolutional_layer(layer l)
     cuda_pull_array(l.biases_gpu, l.biases, l.n);
     cuda_pull_array(l.weight_updates_gpu, l.weight_updates, l.nweights);
     cuda_pull_array(l.bias_updates_gpu, l.bias_updates, l.n);
-#ifdef QUANTIZATION
-    cuda_pull_array(l.activ_data_int8_scales_gpu, l.activ_data_uint8_scales, 1);
-    cuda_pull_array_int8(l.activ_data_int8_zero_point_gpu, l.activ_data_int8_zero_point, 1);	
-    cuda_pull_array(l.weight_data_int8_scales_gpu, l.weight_data_uint8_scales, 1);
-    cuda_pull_array_int8(l.weight_data_int8_zero_point_gpu, l.weight_data_int8_zero_point, 1);	
-    cuda_pull_array_int8(l.weights_quant_gpu, l.weights_uint8, l.c*l.n*l.size*l.size);
-#endif
+// #ifdef QUANTIZATION
+//     cuda_pull_array(l.activ_data_uint8_scales_gpu, l.activ_data_uint8_scales, 1);
+//     cuda_pull_array_int8(l.activ_data_uint8_zero_point_gpu, l.activ_data_uint8_zero_point, 1);	
+//     cuda_pull_array(l.weight_data_uint8_scales_gpu, l.weight_data_uint8_scales, 1);
+//     cuda_pull_array_int8(l.weight_data_uint8_zero_point_gpu, l.weight_data_uint8_zero_point, 1);	
+//     cuda_pull_array_int8(l.weights_quant_gpu, l.weights_uint8, l.c*l.n*l.size*l.size);
+// #endif
     if (l.batch_normalize){
         cuda_pull_array(l.scales_gpu, l.scales, l.n);
         cuda_pull_array(l.rolling_mean_gpu, l.rolling_mean, l.n);
@@ -350,13 +347,13 @@ void push_convolutional_layer(layer l)
     cuda_push_array(l.biases_gpu, l.biases, l.n);
     cuda_push_array(l.weight_updates_gpu, l.weight_updates, l.nweights);
     cuda_push_array(l.bias_updates_gpu, l.bias_updates, l.n);
-#ifdef QUANTIZATION
-    cuda_push_array(l.activ_data_int8_scales_gpu, l.activ_data_uint8_scales, 1);
-    cuda_push_array_int8(l.activ_data_int8_zero_point_gpu, l.activ_data_int8_zero_point, 1);	
-    cuda_push_array(l.weight_data_int8_scales_gpu, l.weight_data_uint8_scales, 1);
-    cuda_push_array_int8(l.weight_data_int8_zero_point_gpu, l.weight_data_int8_zero_point, 1);	
-    cuda_push_array_int8(l.weights_quant_gpu, l.weights_uint8, l.c*l.n*l.size*l.size);
-#endif
+// #ifdef QUANTIZATION
+//     cuda_push_array(l.activ_data_uint8_scales_gpu, l.activ_data_uint8_scales, 1);
+//     cuda_push_array_int8(l.activ_data_uint8_zero_point_gpu, l.activ_data_uint8_zero_point, 1);	
+//     cuda_push_array(l.weight_data_uint8_scales_gpu, l.weight_data_uint8_scales, 1);
+//     cuda_push_array_int8(l.weight_data_uint8_zero_point_gpu, l.weight_data_uint8_zero_point, 1);	
+//     cuda_push_array_int8(l.weights_quant_gpu, l.weights_uint8, l.c*l.n*l.size*l.size);
+// #endif
     if (l.batch_normalize){
         cuda_push_array(l.scales_gpu, l.scales, l.n);
         cuda_push_array(l.rolling_mean_gpu, l.rolling_mean, l.n);

@@ -24,6 +24,7 @@ void pow_cpu(int N, float ALPHA, float *X, int INCX, float *Y, int INCY);
 void mul_cpu(int N, float *X, int INCX, float *Y, int INCY);
 
 void fill_cpu(int N, float ALPHA, float * X, int INCX);
+void fill_cpu_uint8(int N, uint8_t ALPHA, uint8_t *X, int INCX);
 float dot_cpu(int N, float *X, int INCX, float *Y, int INCY);
 int test_gpu_blas();
 void shortcut_cpu(int batch, int w1, int h1, int c1, float *add, int w2, int h2, int c2, float s1, float s2, float *out);
@@ -54,7 +55,7 @@ void weighted_delta_cpu(float *a, float *b, float *s, float *da, float *db, floa
 void softmax(float *input, int n, float temp, int stride, float *output);
 void softmax_cpu(float *input, int n, int batch, int batch_offset, int groups, int group_offset, int stride, float temp, float *output);
 void upsample_cpu(float *in, int w, int h, int c, int batch, int stride, int forward, float scale, float *out);
-
+void upsample_quant_cpu(uint8_t *in, int w, int h, int c, int batch, int stride, int forward, float scale, uint8_t *out);
 #ifdef GPU
 #include "cuda.h"
 #include "tree.h"

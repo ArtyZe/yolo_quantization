@@ -6,6 +6,7 @@
 #include "layer.h"
 #include "network.h"
 #include "blas.h"
+#include "assert.h"
 
 typedef layer maxpool_layer;
 

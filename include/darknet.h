@@ -27,6 +27,9 @@ extern "C" {
 #define QUANT_POSITIVE_LIMIT 255
 #define QUANT_NEGATIVE_LIMIT 0
 
+#define QUANT_POSITIVE_LIMIT_INT8 (256/2 - 1)
+#define QUANT_NEGATIVE_LIMIT_INT8 -1*QUANT_POSITIVE_LIMIT_INT8
+
 #define INPUT_QUANT 0
 #define WEIGHT_QUANT 1
 #define ACTIV_QUANT 2
@@ -161,11 +164,13 @@ struct layer{
 
     uint32_t mult_zero_point;
 
-    uint8_t *input_data_int8_zero_point;
-    uint8_t *activ_data_int8_zero_point;
-    uint8_t *weight_data_int8_zero_point;
-    uint8_t *output_data_int8_zero_point;
-    uint8_t *biases_data_int8_zero_point;
+    uint8_t *input_data_uint8_zero_point;
+    uint8_t *activ_data_uint8_zero_point;
+    uint8_t *weight_data_uint8_zero_point;
+    uint8_t *output_data_uint8_zero_point;
+    uint8_t *biases_data_uint8_zero_point;
+
+    int8_t *weight_data_int8_zero_point;
 
     float *min_activ_value;
     float *max_activ_value;
@@ -174,16 +179,23 @@ struct layer{
 
     int layer_quant_flag;
     int quant_stop_flag;
+    int fisrt_time_train_fag;
 
     float M;
     int32_t M0;
+    double M_value;
     int M0_right_shift;
+    double M0_right_shift_value;
 
     uint8_t * input_uint8;
     uint8_t * weights_uint8;
     int32_t * biases_int32;
     int32_t * output_int32;
     uint8_t * output_uint8_final;
+
+    int16_t * weights_int16;
+    int16_t * input_int16;
+    int16_t * zero_point_int16;
     //end quantization
 
     int batch_normalize;
@@ -430,15 +442,15 @@ struct layer{
     float *scale_v_gpu;
 
     // quantization
-    float *activ_data_int8_scales_gpu;
-    float *weight_data_int8_scales_gpu;
-    float *output_data_int8_scales_gpu;
-    float *biases_data_int8_scales_gpu;
+    float *activ_data_uint8_scales_gpu;
+    float *weight_data_uint8_scales_gpu;
+    float *output_data_uint8_scales_gpu;
+    float *biases_data_uint8_scales_gpu;
 
-    uint8_t *activ_data_int8_zero_point_gpu;
-    uint8_t *weight_data_int8_zero_point_gpu;
-    uint8_t *output_data_int8_zero_point_gpu;
-    uint8_t *biases_data_int8_zero_point_gpu;
+    uint8_t *activ_data_uint8_zero_point_gpu;
+    uint8_t *weight_data_uint8_zero_point_gpu;
+    uint8_t *output_data_uint8_zero_point_gpu;
+    uint8_t *biases_data_uint8_zero_point_gpu;
 
     float *min_activ_value_gpu;
     float *max_activ_value_gpu;
@@ -535,6 +547,7 @@ typedef struct network{
 
     uint8_t *input_uint8;
 
+
     float learning_rate;
     float momentum;
     float decay;
@@ -579,6 +592,7 @@ typedef struct network{
     float *delta;
     float *workspace;
     uint8_t *workspace_quant;
+    int16_t *workspace_quant16;
     int train;
     int index;
     float *cost;
@@ -733,7 +747,7 @@ float dot_cpu(int N, float *X, int INCX, float *Y, int INCY);
 void axpy_cpu(int N, float ALPHA, float *X, int INCX, float *Y, int INCY);
 void copy_cpu(int N, float *X, int INCX, float *Y, int INCY);
 void copy_cpu_int8(int N, int8_t *X, int INCX, int8_t *Y, int INCY);
-void copy_cpu_uint8(int N, uint8_t *X, int INCX, uint16_t *Y, int INCY);
+void copy_cpu_uint8(int N, uint8_t *X, int INCX, uint8_t *Y, int INCY);
 void scal_cpu(int N, float ALPHA, float *X, int INCX);
 void fill_cpu(int N, float ALPHA, float * X, int INCX);
 void normalize_cpu(float *x, float *mean, float *variance, int batch, int filters, int spatial);

@@ -173,7 +173,7 @@ network *make_network(int n)
     return net;
 }
 
-static const char* type_array[] = {
+const char* type_array[] = {
     "CONV",
     "DECONV",
     "CONNECTED",
@@ -206,7 +206,6 @@ static const char* type_array[] = {
     "BLANK",
 };
 
-
 void forward_network(network *netp)
 {
 #ifdef GPU
@@ -216,6 +215,7 @@ void forward_network(network *netp)
     }
 #endif
     network net = *netp;
+    int already_quant_stop_flag = 0;
     for(int i = 0; i < net.n; ++i){
         net.index = i;
         layer l_0 = net.layers[0];
@@ -223,27 +223,29 @@ void forward_network(network *netp)
         if(i == 0){
             for (int input_index = 0; input_index < net.c*net.w*net.h; ++input_index) {
                 assert(l_0.input_data_uint8_scales[0] != 0);
-                uint8_t input_quant_value = clamp(round(net.input[input_index] / l_0.input_data_uint8_scales[0] + l_0.input_data_int8_zero_point[0]), QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+                uint8_t input_quant_value = clamp(round(net.input[input_index] / l_0.input_data_uint8_scales[0] + l_0.input_data_uint8_zero_point[0]), QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
                 net.input_uint8[input_index] = input_quant_value;
             }
         }
         if(l.delta){
             fill_cpu(l.outputs * l.batch, 0, l.delta, 1);
         }
+        double time=what_time_is_it_now();
         l.forward(l, net);
-
+        // printf("layer %d cal time: %lf seconds\n", l.count, what_time_is_it_now()-time);
         const char *next_layer_type = (l.type == YOLO ? "FINAL" : type_array[net.layers[i+1].type]);
         if(l.layer_quant_flag && !net.train){
             net.input_uint8 = l.output_uint8_final;
             net.input = l.output;
-            printf("transfer [uint8] data |%5s -> %5s | %2d/%d...\n", type_array[l.type], next_layer_type, l.count, net.n-1);
+            // printf("transfer [uint8] data |%5s -> %5s | %2d/%d...\n", type_array[l.type], next_layer_type, l.count, net.n-1);
         }else{
             net.input = l.output;
-            printf("transfer [float] data |%5s -> %5s | %2d/%d...\n", type_array[l.type], next_layer_type, l.count, net.n-1);
+            // printf("transfer [float] data |%5s -> %5s | %2d/%d...\n", type_array[l.type], next_layer_type, l.count, net.n-1);
         }
         if(l.truth) {
             net.truth = l.output;
         }
+        // already_quant_stop_flag = l.quant_stop_flag;
     }
     calc_network_cost(netp);
 }

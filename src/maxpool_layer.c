@@ -40,17 +40,17 @@ maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int s
     l.delta =   calloc(output_size, sizeof(float));
 
     l.backward = backward_maxpool_layer;
+    l.forward = forward_maxpool_layer;
 #ifdef QUANTIZATION
 	l.activ_data_uint8_scales = calloc(1, sizeof(float));
-    l.activ_data_int8_zero_point = calloc(1, sizeof(uint8_t));
+    l.activ_data_uint8_zero_point = calloc(1, sizeof(uint8_t));
     l.min_activ_value = calloc(1, sizeof(float));
     l.max_activ_value = calloc(1, sizeof(float));
     l.output_uint8_final = calloc(l.batch*l.outputs, sizeof(uint8_t));
-
     l.layer_quant_flag = layer_quant_flag;
     l.quant_stop_flag = quant_stop_flag;
     l.input_uint8 = calloc(output_size, sizeof(uint8_t));
-    if(l.layer_quant_flag){
+    if(l.layer_quant_flag && !l.close_quantization){
         l.forward = forward_maxpool_layer_quant;
     }
     else{
@@ -58,12 +58,12 @@ maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int s
     }
 #endif
     #ifdef GPU
-        #ifdef QUANTIZATION
-            l.min_activ_value_gpu = cuda_make_array(l.min_activ_value, 1);
-            l.min_activ_value_gpu = cuda_make_array(l.min_activ_value, 1);
-            l.activ_data_int8_scales_gpu = cuda_make_array(l.activ_data_uint8_scales, 1);
-            l.activ_data_int8_zero_point_gpu = cuda_make_array(l.activ_data_int8_zero_point, 1);
-        #endif
+        // #ifdef QUANTIZATION
+        //     l.min_activ_value_gpu = cuda_make_array(l.min_activ_value, 1);
+        //     l.min_activ_value_gpu = cuda_make_array(l.min_activ_value, 1);
+        //     l.activ_data_uint8_scales_gpu = cuda_make_array(l.activ_data_uint8_scales, 1);
+        //     l.activ_data_uint8_zero_point_gpu = cuda_make_array(l.activ_data_uint8_zero_point, 1);
+        // #endif
         l.forward_gpu = forward_maxpool_layer_gpu;
         l.backward_gpu = backward_maxpool_layer_gpu;
         l.indexes_gpu = cuda_make_int_array(0, output_size);
@@ -107,7 +107,8 @@ void forward_maxpool_layer_quant(const maxpool_layer l, network net)
 
     int h = l.out_h;
     int w = l.out_w;
-    int c = l.c;    
+    int c = l.c;
+    #pragma omp parallel for
     for(b = 0; b < l.batch; ++b){
         for(k = 0; k < c; ++k){
             for(i = 0; i < h; ++i){
@@ -134,10 +135,12 @@ void forward_maxpool_layer_quant(const maxpool_layer l, network net)
         }
     }
     if(l.quant_stop_flag){
+        printf("dequant from uint8 to float32 in layer %d\n", l.count);
+        #pragma omp parallel for
         for (int s = 0; s < l.out_c; ++s) {
             for (int t = 0; t < l.out_w*l.out_h; ++t){
                 int out_index = s*l.out_w*l.out_h + t;
-                l.output[out_index] = (l.output_uint8_final[out_index] -  l.activ_data_int8_zero_point[0]) * l.activ_data_uint8_scales[0];
+                l.output[out_index] = (l.output_uint8_final[out_index] -  l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
             }
         }
     }
