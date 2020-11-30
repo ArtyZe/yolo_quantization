@@ -24,9 +24,9 @@ Test:
 
 [Pretrain Cfg file and Weights file]
 =========
-   https://pan.baidu.com/s/1Pq5Drj8t9UEKTYNJszjJSQ 
-   password: waga
-
+	https://pan.baidu.com/s/16_ULXdNPmIhoEmu7jXmkmQ 
+	password: qy8a 
+	
 [Performance]
 =========
  | quantization | inference time (intel chip 64bit) | recall | precision | f1 score |
