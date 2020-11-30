@@ -540,7 +540,7 @@ int show_image(image p, const char *name, int ms)
     int c = show_image_cv(p, name, ms);
     return c;
 #else
-    fprintf(stderr, "Not compiled with OpenCV, saving to %s.png instead\n", name);
+    printf("Not compiled with OpenCV, saving to %s.png instead\n", name);
     save_image(p, name);
     return -1;
 #endif
@@ -568,7 +568,7 @@ void save_image_options(image im, const char *name, IMTYPE f, int quality)
     else if (f == TGA) success = stbi_write_tga(buff, im.w, im.h, im.c, data);
     else if (f == JPG) success = stbi_write_jpg(buff, im.w, im.h, im.c, data, quality);
     free(data);
-    if(!success) fprintf(stderr, "Failed to write image %s\n", buff);
+    if(!success) printf("Failed to write image %s\n", buff);
 }
 
 void save_image(image im, const char *name)
@@ -1295,7 +1295,7 @@ image load_image_stb(char *filename, int channels)
     int w, h, c;
     unsigned char *data = stbi_load(filename, &w, &h, &c, channels);
     if (!data) {
-        fprintf(stderr, "Cannot load image \"%s\"\nSTB Reason: %s\n", filename, stbi_failure_reason());
+        printf("Cannot load image \"%s\"\nSTB Reason: %s\n", filename, stbi_failure_reason());
         exit(0);
     }
     if(channels) c = channels;

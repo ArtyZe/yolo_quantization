@@ -56,6 +56,26 @@ network *load_network(char *cfg, char *weights, int clear)
     return net;
 }
 
+network *load_network_cfg(char *cfg, char *weights, int clear)
+{
+    network *net = parse_network_cfg(cfg, clear);
+    // if(weights && weights[0] != 0){
+    //     load_weights(net, weights);
+    // }
+    // if(clear) (*net->seen) = 0;
+    return net;
+}
+
+network *load_network_weights(char *cfg, char *weights, int clear, network *net)
+{
+    // network *net = parse_network_cfg(cfg, clear);
+    if(weights && weights[0] != 0){
+        load_weights(net, weights);
+    }
+    if(clear) (*net->seen) = 0;
+    return net;
+}
+
 size_t get_current_batch(network *net)
 {
     size_t batch_num = (*net->seen)/(net->batch*net->subdivisions);
@@ -110,7 +130,7 @@ float get_current_rate(network *net)
         case SIG:
             return net->learning_rate * (1./(1.+exp(net->gamma*(batch_num - net->step))));
         default:
-            fprintf(stderr, "Policy is weird!\n");
+            printf("Policy is weird!\n");
             return net->learning_rate;
     }
 }
@@ -230,7 +250,7 @@ void forward_network(network *netp)
         if(l.delta){
             fill_cpu(l.outputs * l.batch, 0, l.delta, 1);
         }
-        double time=what_time_is_it_now();
+        // double time=what_time_is_it_now();
         l.forward(l, net);
         // printf("layer %d cal time: %lf seconds\n", l.count, what_time_is_it_now()-time);
         const char *next_layer_type = (l.type == YOLO ? "FINAL" : type_array[net.layers[i+1].type]);
@@ -303,7 +323,7 @@ void update_network(network *netp)
             l.update(l, a);
         }
     }
-    fprintf(stderr, "prune zeros:%d,all:%d\n",sum_zero_num,sum_all_num);
+    printf("prune zeros:%d,all:%d\n",sum_zero_num,sum_all_num);
 }
 
 void calc_network_cost(network *netp)
@@ -432,7 +452,7 @@ int resize_network(network *net, int w, int h)
     net->w = w;
     net->h = h;
     size_t workspace_size = 0;
-    //fprintf(stderr, "Resizing to %d x %d...\n", w, h);
+    //printf("Resizing to %d x %d...\n", w, h);
     //fflush(stderr);
     for (i = 0; i < net->n; ++i){
         layer l = net->layers[i];
@@ -496,7 +516,7 @@ int resize_network(network *net, int w, int h)
     free(net->workspace);
     net->workspace = calloc(1, workspace_size);
 #endif
-    //fprintf(stderr, " Done!\n");
+    //printf(" Done!\n");
     return 0;
 }
 
@@ -508,7 +528,7 @@ layer get_network_detection_layer(network *net)
             return net->layers[i];
         }
     }
-    fprintf(stderr, "Detection layer not found!!\n");
+    printf("Detection layer not found!!\n");
     layer l = {0};
     return l;
 }
@@ -708,11 +728,11 @@ void print_network(network *net)
         int n = l.outputs;
         float mean = mean_array(output, n);
         float vari = variance_array(output, n);
-        fprintf(stderr, "Layer %d - Mean: %f, Variance: %f\n",i,mean, vari);
+        printf("Layer %d - Mean: %f, Variance: %f\n",i,mean, vari);
         if(n > 100) n = 100;
-        for(j = 0; j < n; ++j) fprintf(stderr, "%f, ", output[j]);
+        for(j = 0; j < n; ++j) printf("%f, ", output[j]);
         if(n == 100)fprintf(stderr,".....\n");
-        fprintf(stderr, "\n");
+        printf("\n");
     }
 }
 

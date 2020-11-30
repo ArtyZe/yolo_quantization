@@ -271,7 +271,7 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
 
     network *net = load_network(cfgfile, weightfile, 0);
     set_batch_network(net, 2);
-    fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
+    printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
     srand(time(0));
 
     list *plist = get_paths(valid_images);
@@ -337,7 +337,7 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
     }
     double start = what_time_is_it_now();
     for(i = nthreads; i < m+nthreads; i += nthreads){
-        fprintf(stderr, "%d\n", i);
+        printf("%d\n", i);
         for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
             pthread_join(thr[t], 0);
             val[t] = buf[t];
@@ -383,7 +383,7 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
         fprintf(fp, "\n]\n");
         fclose(fp);
     }
-    fprintf(stderr, "Total Detection Time: %f Seconds\n", what_time_is_it_now() - start);
+    printf("Total Detection Time: %f Seconds\n", what_time_is_it_now() - start);
 }
 
 
@@ -401,7 +401,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
 
     network *net = load_network(cfgfile, weightfile, 0);
     set_batch_network(net, 1);
-    fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
+    printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
     srand(time(0));
 
     list *plist = get_paths(valid_images);
@@ -466,7 +466,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
     }
     double start = what_time_is_it_now();
     for(i = nthreads; i < m+nthreads; i += nthreads){
-        fprintf(stderr, "%d\n", i);
+        printf("%d\n", i);
         for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
             pthread_join(thr[t], 0);
             val[t] = buf[t];
@@ -509,7 +509,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
         fprintf(fp, "\n]\n");
         fclose(fp);
     }
-    fprintf(stderr, "Total Detection Time: %f Seconds\n", what_time_is_it_now() - start);
+    printf("Total Detection Time: %f Seconds\n", what_time_is_it_now() - start);
 }
 
 
@@ -529,7 +529,7 @@ void my_validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *
 
     network *net = load_network(cfgfile, weightfile, 0);
     set_batch_network(net, 1);
-    fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
+    printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
     srand(time(0));
 
     list *plist = get_paths(valid_images);
@@ -595,7 +595,7 @@ void my_validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *
     }
     double start = what_time_is_it_now();
     for(i = nthreads; i < m+nthreads; i += nthreads){
-        fprintf(stderr, "%d\n", i);
+        printf("%d\n", i);
         for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
             pthread_join(thr[t], 0);
             val[t] = buf[t];
@@ -641,13 +641,13 @@ void my_validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *
     }
     mean_det/= m;
     printf("m:%d",m);
-    fprintf(stderr, "Total Detection Time: %f Seconds with mean det %f\n", what_time_is_it_now() - start,mean_det);
+    printf("Total Detection Time: %f Seconds with mean det %f\n", what_time_is_it_now() - start,mean_det);
 }
 
 void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile, float thresh_orig, float hier_thresh)
 {
     srand(time(0));
-    list *plist = get_paths("/home/gaoyang/benchmark/NOK/2007_val.txt");
+    list *plist = get_paths("/workspace/ygao/benchmark/NOK/2007_test.txt");
     char **paths = (char **)list_to_array(plist);
 
     
@@ -673,9 +673,16 @@ void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile, fl
         image sized = letterbox_image(orig, net->w, net->h);
         char *id = basecfg(path);
         save_image(sized, "SIZE_RECALL");
-        network_predict(net, sized.data);
-        int nboxes = 0;
 
+        int nboxes = 0;
+#ifdef QUANTIZATION
+#ifndef GPU
+    printf("\nQuantinization ...\n");
+    quantization_weights_and_activations(net);
+    printf("Quantinization Complete...\n\n"); 
+#endif
+#endif
+        network_predict(net, sized.data);
 /*         
        
         list *options = read_data_cfg(datacfg);
@@ -722,23 +729,18 @@ void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile, fl
             break;
         }
         for(k = 0; k < nboxes; ++k){
-            //printf("the thresh value is %d\n",proposals);
             if(dets[k].objectness > thresh_orig){
                 ++proposals;
-				//printf("the thresh value is %d\n",proposals);
             }
         }
         for (j = 0; j < num_labels; ++j) {
             ++total;
             box t = {truth[j].x, truth[j].y, truth[j].w, truth[j].h};
-            //printf("the truth path is %f  %f   %f   %f\n",truth[j].x, truth[j].y, truth[j].w, truth[j].h);
             float best_iou = 0;
             for(k = 0; k < nboxes; ++k){
                 float iou = box_iou(dets[k].bbox, t);
-                //printf("the objectness value is %f\n",dets[k].objectness);
                 if(dets[k].objectness > thresh_orig && iou > best_iou){
                     best_iou = iou;
-                    //printf("the thresh value is %f\n",dets[k].objectness);
                 }
             }
             avg_iou += best_iou;
@@ -748,7 +750,7 @@ void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile, fl
             }
         }
 
-        fprintf(stderr, "%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tRecall:%.2f%%\n", i, correct, total, (float)proposals/(i+1), avg_iou*100/total, 100.*correct/total);
+        printf("%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tRecall:%.2f%%\n", i, correct, total, (float)proposals/(i+1), avg_iou*100/total, 100.*correct/total);
         free(id);
         free_image(orig);
         free_image(sized);
@@ -758,107 +760,128 @@ void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile, fl
 void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float thresh, float hier_thresh, int close_quantization)
 {
 
-/*     fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
+/*     printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
     srand(time(0)); */
 
     list *plist = get_paths("/workspace/ygao/benchmark/NOK/2007_test.txt");
     char **paths = (char **)list_to_array(plist);
-    int flag = 1;
+    int flag = 0;
     network *net;
-
-    net = load_network(cfgfile, weightfile, close_quantization);
-    set_batch_network(net, 1);
-#ifdef QUANTIZATION
-#ifndef GPU
-    printf("\nQuantinization ...\n");
-    quantization_weights_and_activations(net);
-    printf("Quantinization Complete...\n\n"); 
-#endif
-#endif
-    int j, k;
-
-    int m = plist->size;
-    int i=0;
-
-    // thresh = .5;
-    float iou_thresh = .1;
-    float nms = .45;
-
-    int TP_FN = 0;
-    int TP_FP=0;
-    int TP = 0;
-    int proposals = 0;
-    float avg_iou = 0;
-    image im, sized;
-    layer l;
-    for(i = 0; i < m; ++i){
-        //network *net = load_network(cfgfile, weightfile, 0);
-        if(flag == 1){
-            printf("the flag value is %d\n", flag);
-            net = load_network(cfgfile, weightfile, 0);
+    float prec[100] = {0};
+    float recl[100] = {0};
+    float ff11[100] = {0};
+    for(int index = 27; index < 28; ++index){
+            sprintf(weightfile, "backup/yolov3-tiny-mask_quant_full_%d0000.weights", index);
+            net = load_network_cfg(cfgfile, weightfile, close_quantization);
+            net = load_network_weights(cfgfile, weightfile, 0, net);
             set_batch_network(net, 1);
-        }
-#ifdef QUANTIZATION
-#ifndef GPU
-        printf("\nQuantinization ...\n");
-        quantization_weights_and_activations(net);
-        printf("Quantinization Complete...\n\n"); 
-#endif
-#endif
-        char *path = paths[i];
-        l = net->layers[net->n-1];
+        #ifdef QUANTIZATION
+        #ifndef GPU
+            printf("\nQuantinization ...\n");
+            quantization_weights_and_activations(net);
+            printf("Quantinization Complete...\n\n"); 
+        #endif
+        #endif
+        char name[100] = {0};
+        sprintf(name, "%d.txt", index);
+        FILE *fp = fopen(name, "a+"); 
+        for(float thre = 0.5; thre < 0.7; thre=thre+0.1){
+            int j, k;
 
-        im = load_image_color(path,0,0);
-        sized = letterbox_image(im, net->w, net->h);
-        float *X = sized.data;
-        network_predict(net, X);
-        int nboxes = 0;
-        detection *dets = get_network_boxes(net, im.w, im.h, thresh, hier_thresh, 0, 1, &nboxes);
-        printf("%d\n", nboxes);
-        printf("-----------------------\n");
-        //if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
-        if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
-        free_detections(dets, nboxes);
+            int m = plist->size;
+            int i=0;
 
-        char labelpath[4096];
-        find_replace(path, "images", "labels", labelpath);
-        find_replace(labelpath, "JPEGImages", "labels", labelpath);
-        find_replace(labelpath, ".jpg", ".txt", labelpath);
-        find_replace(labelpath, ".JPEG", ".txt", labelpath);
+            // thresh = .5;
+            float iou_thresh = .1;
+            float nms = .1;
 
-        int num_labels = 0;
-        box_label *truth = read_boxes(labelpath, &num_labels);
-        for(k = 0; k < nboxes; ++k){
-            if(dets[k].objectness > thresh){
-                ++proposals;
-            }
-        }
-        printf("number of boxes:%d\n",nboxes);
-        for(k = 0; k < nboxes; ++k){
-            TP_FP++;
-        }
-        for (j = 0; j < num_labels; ++j) {
-            ++TP_FN;
-            box t = {truth[j].x, truth[j].y, truth[j].w, truth[j].h};
-            // printf("%f:\n",truth[j].x);
-            float best_iou = 0;
-            for(k = 0; k < nboxes; ++k){
-                float iou = box_iou(dets[k].bbox, t);
-                if(dets[k].objectness > thresh && iou > best_iou){
-                    best_iou = iou;
+            int TP_FN = 0;
+            int TP_FP=0;
+            int TP = 0;
+            int proposals = 0;
+            float avg_iou = 0;
+            image im, sized;
+            for(i = 0; i < m; ++i){
+                printf("image: %d, thresh: %f, weights: %d\n", i, thre, index);
+                if(flag == 1){
+                    net = load_network_cfg(cfgfile, weightfile, close_quantization);
+                    net = load_network_weights(cfgfile, weightfile, 0, net);
+                    set_batch_network(net, 1);
+                    #ifdef QUANTIZATION
+                    #ifndef GPU
+                            printf("\nQuantinization ...\n");
+                            quantization_weights_and_activations(net);
+                            printf("Quantinization Complete...\n\n"); 
+                    #endif
+                    #endif
                 }
+                char *path = paths[i];
+                l = net->layers[net->n-1];
+
+                im = load_image_color(path,0,0);
+                sized = letterbox_image(im, net->w, net->h);
+                float *X = sized.data;
+                network_predict(net, X);
+                int nboxes = 0;
+                detection *dets = get_network_boxes(net, im.w, im.h, thre, hier_thresh, 0, 1, &nboxes);
+                printf("%d\n", nboxes);
+                // printf("-----------------------\n");
+                if (nms) do_nms_obj(dets, nboxes, 1, nms);
+                // if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
+                
+
+                char labelpath[4096];
+                find_replace(path, "images", "labels", labelpath);
+                find_replace(labelpath, "JPEGImages", "labels", labelpath);
+                find_replace(labelpath, ".jpg", ".txt", labelpath);
+                find_replace(labelpath, ".JPEG", ".txt", labelpath);
+
+                int num_labels = 0;
+                box_label *truth = read_boxes(labelpath, &num_labels);
+                for(k = 0; k < nboxes; ++k){
+                    if(dets[k].objectness > thre){
+                        ++proposals;
+                    }
+                }
+                printf("number of boxes:%d\n",nboxes);
+                for(k = 0; k < nboxes; ++k){
+                    TP_FP++;
+                }
+                for (j = 0; j < num_labels; ++j) {
+                    ++TP_FN;
+                    box t = {truth[j].x, truth[j].y, truth[j].w, truth[j].h};
+                    // printf("%f:\n",truth[j].x);
+                    float best_iou = 0;
+                    for(k = 0; k < nboxes; ++k){
+                        float iou = box_iou(dets[k].bbox, t);
+                        if(dets[k].objectness > thre && iou > best_iou){
+                            best_iou = iou;
+                        }
+                    }
+                    avg_iou += best_iou;
+                    if(best_iou > iou_thresh){
+                        ++TP;
+                    }
+                }
+                printf("%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tRecall:%.2f%%\n", i, TP, TP_FN, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*TP/TP_FN);
+                printf("%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tPrecision:%.2f%%\n", i, TP, TP_FP, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*TP/TP_FP);
+                printf("%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tF1:%.2f%%\n\n", i, TP, (TP_FN+TP_FP)/2, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*2*TP/(TP_FP+TP_FN));
+                // free(id);
+                free_image(im);
+                free_image(sized);
+                free_detections(dets, nboxes);
+                free_net(net);
+                // 
+                prec[index] = 100.*TP/TP_FP;
+                recl[index] = 100.*TP/TP_FN;
+                ff11[index] = 100.*2*TP/(TP_FP+TP_FN);
+                
             }
-            avg_iou += best_iou;
-            if(best_iou > iou_thresh){
-                ++TP;
-            }
+            fprintf(fp, "index = %d, thresh = %f, recall = %f, precison = %f, f1 score = %f\n", index, thre, recl[index], prec[index], ff11[index]);
+            
         }
-        fprintf(stderr, "%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tRecall:%.2f%%\n", i, TP, TP_FN, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*TP/TP_FN);
-        fprintf(stderr, "%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tPrecision:%.2f%%\n", i, TP, TP_FP, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*TP/TP_FP);
-        fprintf(stderr, "%5d %5d %5d\tRPs/Img: %.2f\tIOU: %.2f%%\tF1:%.2f%%\n\n", i, TP, (TP_FN+TP_FP)/2, (float)proposals/(i+1), avg_iou*100/TP_FN, 100.*2*TP/(TP_FP+TP_FN));
-        // free(id);
-        // free_image(im);
-        // free_image(sized);
+        fclose(fp);
+        free(net);
     }
 }
 
@@ -940,7 +963,7 @@ void run_detector(int argc, char **argv)
     float thresh = find_float_arg(argc, argv, "-thresh", .5);
     float hier_thresh = find_float_arg(argc, argv, "-hier", .5);
     if(argc < 4){
-        fprintf(stderr, "usage: %s %s [train/test/valid] [cfg] [weights (optional)]\n", argv[0], argv[1]);
+        printf("usage: %s %s [train/test/valid] [cfg] [weights (optional)]\n", argv[0], argv[1]);
         return;
     }
     char *gpu_list = find_char_arg(argc, argv, "-gpus", 0);

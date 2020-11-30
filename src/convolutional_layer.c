@@ -253,8 +253,8 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
     l.biases_bn_backup = calloc(l.n, sizeof(float));
     if(l.layer_quant_flag && !l.close_quantization){
         // l.forward = forward_convolutional_layer_quant_inputf_outputf;
-        l.forward = forward_convolutional_layer_quant_inputi_outputi;
-        // l.forward = forward_convolutional_layer_quant_inputi_outputi_cblas;
+        // l.forward = forward_convolutional_layer_quant_inputi_outputi;
+        l.forward = forward_convolutional_layer_quant_inputi_outputi_mkl;
         // l.forward = forward_convolutional_layer_nobn;
     }else{
         l.forward = forward_convolutional_layer;
@@ -391,7 +391,7 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
     l.workspace_size = get_workspace_size(l);
     l.activation = activation;
 
-    fprintf(stderr, "conv  %5d %2d x%2d /%2d  %4d x%4d x%4d   ->  %4d x%4d x%4d  %5.3f BFLOPs\n", n, size, size, stride, w, h, c, l.out_w, l.out_h, l.out_c, (2.0 * l.n * l.size*l.size*l.c/l.groups * l.out_h*l.out_w)/1000000000.);
+    printf("conv  %5d %2d x%2d /%2d  %4d x%4d x%4d   ->  %4d x%4d x%4d  %5.3f BFLOPs\n", n, size, size, stride, w, h, c, l.out_w, l.out_h, l.out_c, (2.0 * l.n * l.size*l.size*l.c/l.groups * l.out_h*l.out_w)/1000000000.);
 
     return l;
 }
@@ -603,7 +603,7 @@ void forward_convolutional_layer_quant_inputi_outputi_mkl(convolutional_layer l,
         }
     }
     if(l.quant_stop_flag){
-        printf("dequant from uint8 to float32 in layer %d\n", l.count);
+        // printf("dequant from uint8 to float32 in layer %d\n", l.count);
         for (s = 0; s < l.out_c; ++s) {
             for (t = 0; t < l.out_w*l.out_h; ++t){
                 int out_index = s*l.out_w*l.out_h + t;
@@ -676,7 +676,7 @@ void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, net
         }
     }
     if(l.quant_stop_flag){
-        printf("dequant from uint8 to float32 in layer %d\n", l.count);
+        // printf("dequant from uint8 to float32 in layer %d\n", l.count);
         #pragma omp parallel for
         for (s = 0; s < l.out_c; ++s) {
             for (t = 0; t < l.out_w*l.out_h; ++t){

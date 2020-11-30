@@ -570,7 +570,7 @@ learning_rate_policy get_policy(char *s)
     if (strcmp(s, "exp")==0) return EXP;
     if (strcmp(s, "sigmoid")==0) return SIG;
     if (strcmp(s, "steps")==0) return STEPS;
-    fprintf(stderr, "Couldn't find policy %s, going with constant\n", s);
+    printf("Couldn't find policy %s, going with constant\n", s);
     return CONSTANT;
 }
 
@@ -703,10 +703,10 @@ network *parse_network_cfg(char *filename, int close_quantization)
     n = n->next;
     int count = 0;
     free_section(s);
-    fprintf(stderr, "layer     filters    size              input                output\n");
+    printf("layer     filters    size              input                output\n");
     while(n){
         params.index = count;
-        fprintf(stderr, "%5d ", count);
+        printf("%5d ", count);
         s = (section *)n->val;
         options = s->options;
         layer l = {0};
@@ -757,7 +757,7 @@ network *parse_network_cfg(char *filename, int close_quantization)
             l.delta_gpu = net->layers[count-1].delta_gpu;
 #endif
         }else{
-            fprintf(stderr, "Type not recognized: %s\n", s->type);
+            printf("Type not recognized: %s\n", s->type);
         }
         l.clip = net->clip;
         l.truth = option_find_int_quiet(options, "truth", 0);
@@ -836,7 +836,7 @@ list *read_cfg(char *filename)
                 break;
             default:
                 if(!read_option(line, current->options)){
-                    fprintf(stderr, "Config file error line %d, could parse: %s\n", nu, line);
+                    printf("Config file error line %d, could parse: %s\n", nu, line);
                     free(line);
                 }
                 break;
@@ -964,7 +964,7 @@ void save_weights_upto(network *net, char *filename, int cutoff)
         cuda_set_device(net->gpu_index);
     }
 #endif
-    fprintf(stderr, "Saving weights to %s\n", filename);
+    printf("Saving weights to %s\n", filename);
     FILE *fp = fopen(filename, "wb");
     if(!fp) file_error(filename);
 
@@ -1144,18 +1144,9 @@ void load_convolutional_weights(layer l, FILE *fp, network *net, int index)
     fread(l.weight_data_uint8_scales, sizeof(float), 1, fp);
     fread(l.weight_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
     fread(l.weights_uint8, sizeof(uint8_t), l.c*l.n*l.size*l.size, fp);
-    printf("layer%d --- load input sacle = %f, z = %d\n", l.count, l.input_data_uint8_scales[0], l.input_data_uint8_zero_point[0]);
-    printf("layer%d --- load weigt sacle = %f, z = %d\n", l.count, l.weight_data_uint8_scales[0], l.weight_data_uint8_zero_point[0]);
-    printf("layer%d --- load activ sacle = %f, z = %d\n", l.count, l.activ_data_uint8_scales[0], l.activ_data_uint8_zero_point[0]);
-    // if(l.activ_data_uint8_scales[0]){
-    //     // l.min_input_value[0] = (QUANT_NEGATIVE_LIMIT - l.input_data_uint8_zero_point[0]) * l.input_data_uint8_scales[0];
-    //     // l.max_input_value[0] = (QUANT_POSITIVE_LIMIT - l.input_data_uint8_zero_point[0]) * l.input_data_uint8_scales[0];
-    //     l.min_activ_value[0] = (QUANT_NEGATIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
-    //     l.max_activ_value[0] = (QUANT_POSITIVE_LIMIT - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
-    //     // printf("weight quant value is %d\n", *l.input_data_uint8_zero_point);
-    // }else if(index > 1){
-    //     l.min_activ_value[0] = net->layers[index-1].min_activ_value[0];
-    //     l.max_activ_value[0] = net->layers[index-1].max_activ_value[0];
+    // printf("layer%d --- load input sacle = %f, z = %d\n", l.count, l.input_data_uint8_scales[0], l.input_data_uint8_zero_point[0]);
+    // printf("layer%d --- load weigt sacle = %f, z = %d\n", l.count, l.weight_data_uint8_scales[0], l.weight_data_uint8_zero_point[0]);
+    // printf("layer%d --- load activ sacle = %f, z = %d\n", l.count, l.activ_data_uint8_scales[0], l.activ_data_uint8_zero_point[0]);
     // }
 
 #endif
@@ -1163,6 +1154,45 @@ void load_convolutional_weights(layer l, FILE *fp, network *net, int index)
     if (l.flipped) {
         transpose_matrix(l.weights, l.c*l.size*l.size, l.n);
     }
+#ifdef GPU
+    if(gpu_index >= 0){
+        push_convolutional_layer(l);
+    }
+#endif
+}
+
+void load_convolutional_weights_test(layer l, FILE *fp, network *net, int index)
+{
+    if(l.binary){
+        //load_convolutional_weights_binary(l, fp);
+        //return;
+    }
+    if(l.numload) l.n = l.numload;
+    int num = l.c/l.groups*l.n*l.size*l.size;
+    fread(l.biases, sizeof(float), l.n, fp);
+    if (l.batch_normalize && (!l.dontloadscales)){
+        fread(l.scales, sizeof(float), l.n, fp);
+        fread(l.rolling_mean, sizeof(float), l.n, fp);
+        fread(l.rolling_variance, sizeof(float), l.n, fp);
+    }
+#ifdef QUANTIZATION
+    fread(l.input_data_uint8_scales, sizeof(float), 1, fp);
+    fread(l.input_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
+    fread(l.activ_data_uint8_scales, sizeof(float), 1, fp);
+    fread(l.activ_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
+    fread(l.weight_data_uint8_scales, sizeof(float), 1, fp);
+    fread(l.weight_data_uint8_zero_point, sizeof(uint8_t), 1, fp);
+    fread(l.weights_uint8, sizeof(uint8_t), l.c*l.n*l.size*l.size, fp);
+    // printf("layer%d --- load input sacle = %f, z = %d\n", l.count, l.input_data_uint8_scales[0], l.input_data_uint8_zero_point[0]);
+    // printf("layer%d --- load weigt sacle = %f, z = %d\n", l.count, l.weight_data_uint8_scales[0], l.weight_data_uint8_zero_point[0]);
+    // printf("layer%d --- load activ sacle = %f, z = %d\n", l.count, l.activ_data_uint8_scales[0], l.activ_data_uint8_zero_point[0]);
+    // }
+
+#endif
+    fread(l.weights, sizeof(float), num, fp);
+    // if (l.flipped) {
+    //     transpose_matrix(l.weights, l.c*l.size*l.size, l.n);
+    // }
 #ifdef GPU
     if(gpu_index >= 0){
         push_convolutional_layer(l);
@@ -1230,7 +1260,7 @@ void load_weights_upto(network *net, char *filename, int start, int cutoff)
         cuda_set_device(net->gpu_index);
     }
 #endif
-    fprintf(stderr, "Loading weights from %s...", filename);
+    printf("Loading weights from %s...", filename);
     fflush(stdout);
     FILE *fp = fopen(filename, "rb");
     if(!fp) file_error(filename);
@@ -1320,12 +1350,113 @@ void load_weights_upto(network *net, char *filename, int start, int cutoff)
 #endif
         }
     }
-    fprintf(stderr, "Done!\n");
+    printf("Done!\n");
+    fclose(fp);
+}
+
+void load_conv_weights_upto(network *net, char *filename, int start, int cutoff)
+{
+#ifdef GPU
+    if(net->gpu_index >= 0){
+        cuda_set_device(net->gpu_index);
+    }
+#endif
+    printf("Loading weights from %s...", filename);
+    fflush(stdout);
+    FILE *fp = fopen(filename, "rb");
+    if(!fp) file_error(filename);
+
+    int major;
+    int minor;
+    int revision;
+    fread(&major, sizeof(int), 1, fp);
+    fread(&minor, sizeof(int), 1, fp);
+    fread(&revision, sizeof(int), 1, fp);
+    if ((major*10 + minor) >= 2 && major < 1000 && minor < 1000){
+        fread(net->seen, sizeof(size_t), 1, fp);
+    } else {
+        int iseen = 0;
+        fread(&iseen, sizeof(int), 1, fp);
+        *net->seen = iseen;
+    }
+    int transpose = (major > 1000) || (minor > 1000);
+
+    int i;
+    for(i = start; i < net->n && i < cutoff; ++i){
+        layer l = net->layers[i];
+        if (l.dontload) continue;
+        if(l.type == CONVOLUTIONAL || l.type == DECONVOLUTIONAL){
+            load_convolutional_weights_test(l, fp, net, i);
+        }
+        if(l.type == CONNECTED){
+            load_connected_weights(l, fp, transpose);
+        }
+#ifdef QUANTIZATION
+        if(l.type == MAXPOOL){
+            load_maxpool_weights(l, fp, net, i);
+        }
+        if(l.type == ROUTE && l.layer_quant_flag){      // next train loop, just comment it
+            load_route_weights(l, fp, net);
+        }
+        if(l.type == UPSAMPLE && l.layer_quant_flag){
+            load_upsample_weights(l, fp, net, i);
+        }
+#endif
+        if(l.type == BATCHNORM){
+            load_batchnorm_weights(l, fp);
+        }
+        if(l.type == CRNN){
+            load_convolutional_weights(*(l.input_layer), fp, net, i);
+            load_convolutional_weights(*(l.self_layer), fp, net, i);
+            load_convolutional_weights(*(l.output_layer), fp, net, i);
+        }
+        if(l.type == RNN){
+            load_connected_weights(*(l.input_layer), fp, transpose);
+            load_connected_weights(*(l.self_layer), fp, transpose);
+            load_connected_weights(*(l.output_layer), fp, transpose);
+        }
+        if (l.type == LSTM) {
+            load_connected_weights(*(l.wi), fp, transpose);
+            load_connected_weights(*(l.wf), fp, transpose);
+            load_connected_weights(*(l.wo), fp, transpose);
+            load_connected_weights(*(l.wg), fp, transpose);
+            load_connected_weights(*(l.ui), fp, transpose);
+            load_connected_weights(*(l.uf), fp, transpose);
+            load_connected_weights(*(l.uo), fp, transpose);
+            load_connected_weights(*(l.ug), fp, transpose);
+        }
+        if (l.type == GRU) {
+            if(1){
+                load_connected_weights(*(l.wz), fp, transpose);
+                load_connected_weights(*(l.wr), fp, transpose);
+                load_connected_weights(*(l.wh), fp, transpose);
+                load_connected_weights(*(l.uz), fp, transpose);
+                load_connected_weights(*(l.ur), fp, transpose);
+                load_connected_weights(*(l.uh), fp, transpose);
+            }else{
+                load_connected_weights(*(l.reset_layer), fp, transpose);
+                load_connected_weights(*(l.update_layer), fp, transpose);
+                load_connected_weights(*(l.state_layer), fp, transpose);
+            }
+        }
+        if(l.type == LOCAL){
+            int locations = l.out_w*l.out_h;
+            int size = l.size*l.size*l.c*l.n*locations;
+            fread(l.biases, sizeof(float), l.outputs, fp);
+            fread(l.weights, sizeof(float), size, fp);
+        }
+    }
+    printf("Done!\n");
     fclose(fp);
 }
 
 void load_weights(network *net, char *filename)
 {
     load_weights_upto(net, filename, 0, net->n);
+}
+
+void load_conv_weights(network *net, char *filename)
+{
+    load_conv_weights_upto(net, filename, 0, net->n);
 }
 

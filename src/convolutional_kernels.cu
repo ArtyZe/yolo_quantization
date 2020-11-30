@@ -148,7 +148,7 @@ void forward_convolutional_layer_quant_gpu(convolutional_layer l, network net)
         // calculate input quantization scale and zeropoint s1, z1
         cuda_pull_array(l.weights_gpu, l.weights, l.c*l.n*l.size*l.size);
         cuda_pull_array(net.input_gpu, net.input, l.c*l.w*l.h);
-        if(l.count == 0 || net.layers[l.count-1].type == ROUTE){
+        if(l.count == 0){
             fake_quant_with_min_max_channel(1, net.input, l.weights_uint8, l.c*l.w*l.h, l.min_input_value, l.max_input_value, 
                 l.input_data_uint8_scales, l.input_data_uint8_zero_point, INPUT_QUANT, 0.9);
             assert(l.input_data_uint8_scales[0] > 0);

@@ -52,8 +52,8 @@ layer make_upsample_layer(int batch, int w, int h, int c, int stride, int layer_
     l.delta_gpu =  cuda_make_array(l.delta, l.outputs*batch);
     l.output_gpu = cuda_make_array(l.output, l.outputs*batch);
     #endif
-    if(l.reverse) fprintf(stderr, "downsample         %2dx  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", stride, w, h, c, l.out_w, l.out_h, l.out_c);
-    else fprintf(stderr, "upsample           %2dx  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", stride, w, h, c, l.out_w, l.out_h, l.out_c);
+    if(l.reverse) printf("downsample         %2dx  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", stride, w, h, c, l.out_w, l.out_h, l.out_c);
+    else printf("upsample           %2dx  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", stride, w, h, c, l.out_w, l.out_h, l.out_c);
     return l;
 }
 
@@ -100,7 +100,7 @@ void forward_upsample_layer_quant(const layer l, network net)
         upsample_quant_cpu(net.input_uint8, l.w, l.h, l.c, l.batch, l.stride, 1, l.scale, l.output_uint8_final);
     }
     if(l.quant_stop_flag){
-        printf("dequant from uint8 to float32 in layer %d\n", l.count);
+        // printf("dequant from uint8 to float32 in layer %d\n", l.count);
         for (int s = 0; s < l.out_c; ++s) {
             for (int t = 0; t < l.out_w*l.out_h; ++t){
                 int out_index = s*l.out_w*l.out_h + t;

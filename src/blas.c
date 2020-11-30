@@ -115,14 +115,6 @@ void quantization_weights_and_activations(network *net)
 {
     int i;    
     for (i = 0; i < net->n; ++i) {
-        // if(i == 0){
-        //     layer l_0 = net->layers[0];
-        //     for (int input_index = 0; input_index < net->c*net->w*net->h; ++input_index) {
-        //         assert(l_0.input_data_uint8_scales[0] != 0);
-        //         uint8_t input_quant_value = clamp(round(net->input[input_index] / l_0.input_data_uint8_scales[0] + l_0.input_data_uint8_zero_point[0]), QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
-        //         net->input_uint8[input_index] = input_quant_value;
-        //     }
-        // }
         layer *l = &net->layers[i];
         if (l->type == CONVOLUTIONAL && l->layer_quant_flag){
             if(l->batch_normalize){
@@ -174,14 +166,32 @@ void quantization_weights_and_activations(network *net)
         extern const char* type_array[];
         int inheritance_type = (l->type == MAXPOOL || l->type == ROUTE || l->type == UPSAMPLE);
         if(inheritance_type && l->layer_quant_flag){
-            printf("layer:  %2d, type:  [%5s], activ quant scale:   %f, activ quant zero_p:   %d\n", l->count, type_array[l->type], l->activ_data_uint8_scales[0], l->activ_data_uint8_zero_point[0]);
-            printf("----------------------------\n");
+            // printf("layer:  %2d, type:  [%5s], activ quant scale:   %f, activ quant zero_p:   %d\n", l->count, type_array[l->type], l->activ_data_uint8_scales[0], l->activ_data_uint8_zero_point[0]);
+            // printf("----------------------------\n");
             // l->activ_data_uint8_scales[0] =  net->layers[i-1].activ_data_uint8_scales[0];
             // l->activ_data_uint8_zero_point[0] =  net->layers[i-1].activ_data_uint8_zero_point[0];
         }
     }
 }
 
+void free_net(network * net){
+    int i;
+    for (i = 0; i < net->n; ++i) {
+        layer l = net->layers[i];
+        if (l.type == CONVOLUTIONAL){
+            for (int ss = 0; ss < l.out_w*l.out_h; ++ss){ 
+                l.input_sum_int[ss] = 0;
+            }
+            for (int i = 0; i < l.out_c; ++i) {
+                for (int j = 0; j < l.out_w*l.out_h; ++j){
+                    int out_index = i*l.out_w*l.out_h + j;
+                        l.output_int32[out_index] = 0;
+                }
+            }
+
+        }
+    }
+}
 /*************************************************************************************************************************
      Given a real_multiplier in the interval (0, 1),
     produces a pair (quantized_multiplier, right_shift) where

@@ -223,7 +223,7 @@ int main(int argc, char **argv)
     //test_box();
     //test_convolutional_layer();
     if(argc < 2){
-        fprintf(stderr, "usage: %s <function>\n", argv[0]);
+        printf("usage: %s <function>\n", argv[0]);
         return 0;
     }
     gpu_index = find_int_arg(argc, argv, "-i", 0);
@@ -251,7 +251,7 @@ int main(int argc, char **argv)
     } else if (0 == strcmp(argv[1], "segmenter")){
         run_segmenter(argc, argv);
     } else {
-        fprintf(stderr, "Not an option: %s\n", argv[1]);
+        printf("Not an option: %s\n", argv[1]);
     }
     return 0;
 }

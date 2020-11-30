@@ -546,7 +546,7 @@ typedef struct network{
     learning_rate_policy policy;
 
     uint8_t *input_uint8;
-
+    size_t workspace_size;
 
     float learning_rate;
     float momentum;
@@ -699,6 +699,8 @@ typedef struct{
 
 
 network *load_network(char *cfg, char *weights, int clear);
+network *load_network_cfg(char *cfg, char *weights, int clear);
+network *load_network_weights(char *cfg, char *weights, int clear, network *net);
 load_args get_base_args(network *net);
 
 void free_data(data d);
@@ -815,6 +817,7 @@ int option_find_int_quiet(list *l, char *key, int def);
 network *parse_network_cfg(char *filename, int close_quantization);
 void save_weights(network *net, char *filename);
 void load_weights(network *net, char *filename);
+void load_conv_weights(network *net, char *filename);
 void save_weights_upto(network *net, char *filename, int cutoff);
 void load_weights_upto(network *net, char *filename, int start, int cutoff);
 
@@ -872,6 +875,7 @@ image **load_alphabet();
 image get_network_image(network *net);
 float *network_predict(network *net, float *input);
 void quantization_weights_and_activations(network *net);  
+void free_net(network *net); 
 
 int network_width(network *net);
 int network_height(network *net);
