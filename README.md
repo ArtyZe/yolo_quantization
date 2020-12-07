@@ -32,6 +32,6 @@ Test:
  | quantization | inference time (intel chip 64bit) | recall | precision | f1 score |
  | :------: | :------: | :------: | :------: | :------: |
  | darknet | 0.92s | 74.43 | 89.45 | 81.25| 
- | quantization mine | 0.55s | 92.74 | 90.67 | 91.70 |
+ | quantization mine | 0.41s | 92.74 | 90.67 | 91.70 |
 
 
