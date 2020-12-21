@@ -12,7 +12,7 @@ Train:
 
 	make -j8
 
-	./darknet segmenter train cfg/voc_nok.data cfg/yolov3-tiny-mask_quant.cfg [pretrain weights file I gave to you]
+	./darknet detector train cfg/voc_nok.data cfg/yolov3-tiny-mask_quant.cfg [pretrain weights file I gave to you(default in cfg folder)]
 
 Test:
 >**set GPU=0 in Makefile**
