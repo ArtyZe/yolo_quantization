@@ -1,12 +1,11 @@
-PRUNE=1
+PRUNE=0
 GPU=0
 CUDNN=0
 OPENCV=0
 OPENMP=0
+OPENBLAS=1
 DEBUG=0
-SCALE_L1=0
-LAYER_MASK=0
-MULTI_CORE=1
+MULTI_CORE=0
 AVX=1
 QUANTIZATION=1
 
@@ -24,6 +23,9 @@ SLIB=libdarknet.so
 ALIB=libdarknet.a
 EXEC=darknet
 OBJDIR=./obj/
+MKLROOT=/workspace/ygao/software_backup/intel/mkl
+
+# INCLUDEDIRS =  /I $(inc) /I $(mkl) /I $(LIBS)
 
 CC=gcc
 CPP=g++
@@ -32,8 +34,10 @@ AR=ar
 ARFLAGS=rcs
 OPTS=-Ofast
 LDFLAGS= -lm -pthread 
-COMMON= -Iinclude/ -Isrc/
+# COMMON= -Iinclude/ -Isrc/ -Idata/OpenBLAS/include
+COMMON= -Iinclude/ -Isrc/ 
 CFLAGS=-Wall -Wno-unused-result -Wno-unknown-pragmas -Wfatal-errors -fPIC
+
 
 ifeq ($(DEBUG), 1) 
 OPTS=-O0 -g
@@ -46,6 +50,18 @@ COMMON+= -DOPENCV
 CFLAGS+= -DOPENCV
 LDFLAGS+= `pkg-config --libs opencv` -lstdc++
 COMMON+= `pkg-config --cflags opencv` 
+endif
+
+ifeq ($(OPENBLAS), 1) 
+COMMON+= -DMKL_ILP64
+CFLAGS+= -DMKL_ILP64 -m64 -I${MKLROOT}/include
+# LDFLAGS+= -L/data/OpenBLAS -lopenblas
+# COMMON+= `pkg-config --cflags opencv` 
+COMMON+= -I/workspace/ygao/software_backup/intel/mkl/include -I/workspace/ygao/software_backup/intel/include -I/workspace/ygao/software_backup/intel/compilers_and_libraries_2020.4.304/linux/mkl/include
+LDFLAGS+= -L/workspace/ygao/software_backup/intel/mkl/lib/intel64 -L/workspace/ygao/software_backup/intel/mkl/lib/intel64_lin -L/workspace/ygao/software_backup/intel/lib/intel64 -L/workspace/ygao/software_backup/intel/lib/intel64_lin -lmkl_rt 
+# LDFLAGS+= -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm -ldl
+# LDFLAGS+= -Wl,--no-as-needed -lmkl_intel_ilp64 -lmkl_core -lgomp -lpthread -lm -ldl -lmkl_gnu_thread 
+# COMMON+= `pkg-config --cflags opencv`
 endif
 
 ifeq ($(GPU), 1) 
@@ -62,6 +78,7 @@ endif
 
 ifeq ($(AVX), 1) 
 CFLAGS+= -ffp-contract=fast -msse3 -msse4.1 -msse4.2 -msse4a -mavx -mavx2 -mfma -DAVX
+# CFLAGS+= -DAVX
 endif
 
 ifeq ($(PRUNE), 1) 
@@ -72,16 +89,6 @@ endif
 ifeq ($(QUANTIZATION), 1) 
 COMMON+= -DQUANTIZATION
 CFLAGS+= -DQUANTIZATION
-endif
-
-ifeq ($(SCALE_L1), 1) 
-COMMON+= -DSCALE_L1
-CFLAGS+= -DSCALE_L1
-endif
-
-ifeq ($(LAYER_MASK), 1) 
-COMMON+= -DMASK
-CFLAGS+= -DMASK
 endif
 
 ifeq ($(MULTI_CORE), 1) 
@@ -110,7 +117,7 @@ $(ALIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
 $(SLIB): $(OBJS)
-	$(CC) $(CFLAGS) -shared $^ -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -shared $^ -o $@ $(LDFLAGS) 
 
 $(OBJDIR)%.o: %.cpp $(DEPS)
 	$(CPP) $(COMMON) $(CFLAGS) -c $< -o $@
