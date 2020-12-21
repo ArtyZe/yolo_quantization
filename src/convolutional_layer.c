@@ -180,7 +180,7 @@ void cudnn_convolutional_setup(layer *l)
 #endif
 
 convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int n, int groups, int size, int stride, int padding, ACTIVATION activation, 
-                                             int batch_normalize, int binary, int quant_stop_flag, int adam, int close_quantization, int layer_quantization)
+                                             int batch_normalize, int binary, int quant_stop_flag, int adam, int close_quantization, int layer_quantization, int count)
 {
     int i;
     convolutional_layer l = {0};
@@ -226,21 +226,27 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
     l.quant_stop_flag = quant_stop_flag;
 
 	l.activ_data_uint8_scales = calloc(1, sizeof(float));
-    l.weight_data_uint8_scales = calloc(1, sizeof(float));
+    l.weight_data_uint8_scales = calloc(l.n, sizeof(float));
     l.input_data_uint8_scales = calloc(1, sizeof(float));
-	l.biases_data_uint8_scales = calloc(n, sizeof(float));
-	l.weight_data_uint8_scales = calloc(n, sizeof(float));
+	l.biases_data_uint8_scales = calloc(l.n, sizeof(float));
 
-    l.input_sum_int = calloc(l.out_w*l.out_h, sizeof(uint32_t));
+    l.input_sum_int = calloc(l.out_w*l.out_h*l.n, sizeof(uint32_t));
     l.weights_sum_int = calloc(l.n, sizeof(uint32_t));
+    l.mult_zero_point = calloc(l.n, sizeof(uint32_t));
+
+    l.M = calloc(l.n, sizeof(float));
+    l.M0 = calloc(l.n, sizeof(int32_t));
+    l.M_value = calloc(l.n, sizeof(double));
+    l.M0_right_shift = calloc(l.n, sizeof(int));
+    l.M0_right_shift_value = calloc(l.n, sizeof(double));
 
     l.activ_data_uint8_zero_point = calloc(1, sizeof(uint8_t));
-    l.weight_data_uint8_zero_point = calloc(1, sizeof(uint8_t));
+    l.weight_data_uint8_zero_point = calloc(l.n, sizeof(uint8_t));
     l.input_data_uint8_zero_point = calloc(1, sizeof(uint8_t));
-    l.biases_data_uint8_zero_point = calloc(n, sizeof(uint8_t));
-    l.output_data_uint8_zero_point = calloc(n, sizeof(uint8_t));
+    l.biases_data_uint8_zero_point = calloc(l.n, sizeof(uint8_t));
 
     l.weights_uint8 = calloc(l.nweights, sizeof(uint8_t));
+    l.weights_norm = calloc(l.nweights, sizeof(float));
 	l.biases_int32 = calloc(l.n, sizeof(uint32_t));
     l.input_uint8 = calloc(l.c*l.w*l.h, sizeof(uint8_t));
 
@@ -252,12 +258,11 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
     l.output_bn_backup = calloc(l.n*l.out_w*l.out_h, sizeof(float));
     l.biases_bn_backup = calloc(l.n, sizeof(float));
     if(l.layer_quant_flag && !l.close_quantization){
-        // l.forward = forward_convolutional_layer_quant_inputf_outputf;
-        // l.forward = forward_convolutional_layer_quant_inputi_outputi;
         l.forward = forward_convolutional_layer_quant_inputi_outputi_mkl;
-        // l.forward = forward_convolutional_layer_nobn;
+    }else if (l.layer_quant_flag && l.close_quantization){
+        l.forward = forward_convolutional_layer_quant_inputf_outputf;
     }else{
-        l.forward = forward_convolutional_layer;
+        l.forward = forward_convolutional_layer_nobn;
     }
 #else
     l.forward = forward_convolutional_layer;
@@ -321,13 +326,13 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
     l.output_data_uint8_scales_gpu = cuda_make_array(l.weight_data_uint8_scales, l.c*l.n);
 
     l.weights_quant_gpu = cuda_make_array(l.weights_uint8, l.c*l.n*l.size*l.size);
+    l.weights_norm_gpu = cuda_make_array(l.weights_norm, l.nweights);
 
     l.weights_bn_backup_gpu = cuda_make_array(l.weights_bn_backup, l.c*l.n*l.size*l.size);
     l.biases_bn_backup_gpu = cuda_make_array(l.biases_bn_backup, l.n);
     l.output_bn_backup_gpu = cuda_make_array(l.output_bn_backup, l.n*l.out_w*l.out_h);
 
     l.forward_gpu = forward_convolutional_layer_quant_gpu;
-    // l.forward_gpu = forward_convolutional_layer_gpu;
 #endif
     l.backward_gpu = backward_convolutional_layer_gpu;
     l.update_gpu = update_convolutional_layer_gpu;
@@ -519,52 +524,38 @@ void forward_convolutional_layer_quant_inputi_outputi_mkl(convolutional_layer l,
 {
     int i, j, s, t;
     int batch_index, groups_index;
-    double time00=what_time_is_it_now();
     // y = conv(x) --> q1*q2
     int m = l.n/l.groups;
     int k = l.size*l.size*l.c/l.groups;
     int n = l.out_h*l.out_w;
-    // net.workspace_quant = calloc(1, l.out_h*l.out_w*l.size*l.size*l.c*sizeof(uint8_t));
     net.workspace_quant16 = calloc(1, l.out_h*l.out_w*l.size*l.size*l.c*sizeof(int16_t));
-    for (int input_index = 0; input_index < l.c*l.w*l.h; ++input_index) {
-        l.input_int16[input_index] = (int16_t)net.input_uint8[input_index];
+    for(int in = 0; in < l.out_h*l.out_w*l.size*l.size*l.c; ++in){
+        net.workspace_quant16[in] = l.input_data_uint8_zero_point[0];
+    }
+    if(l.count > 0){
+        for (int input_index = 0; input_index < l.c*l.w*l.h; ++input_index) {
+            l.input_int16[input_index] = (int16_t)net.input_uint8[input_index];
+        }
     }
     for(batch_index = 0;batch_index < l.batch; batch_index++){
         for(groups_index = 0;groups_index < l.groups; groups_index++){
-            // uint8_t *a = l.weights_uint8 + groups_index*l.nweights/l.groups;
             int16_t *a16 = l.weights_int16 + groups_index*l.nweights/l.groups;
-            // uint8_t *b = (uint8_t *)net.workspace_quant;
-            int16_t *b16 = (int16_t *)net.workspace_quant16;
+            int16_t *b16 = net.workspace_quant16;
             int32_t *c = l.output_int32 + (batch_index*l.groups + groups_index)*n*m;
-            // uint8_t *im =  net.input_uint8 + (batch_index*l.groups + groups_index)*l.c/l.groups*l.h*l.w;
             int16_t *im16 =  l.input_int16 + (batch_index*l.groups + groups_index)*l.c/l.groups*l.h*l.w;
             if (l.size == 1) {
-                // b = im;
                 b16 = im16;
             } else {
-                // im2col_cpu_uint8(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);    // here
-                im2col_cpu_int16(im16, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b16);    // here
+                im2col_cpu_int16(im16, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b16, l.input_data_uint8_zero_point[0]);    // here
             }
-            // for (int ss = 0; ss < l.out_w*l.out_h; ++ss){ 
-            //     for (int tt = 0; tt < l.c*l.size*l.size; ++tt){
-            //         // l.input_sum_int[ss] += b[tt*l.out_w*l.out_h+ss];
-            //         l.input_sum_int[ss] += b16[tt*l.out_w*l.out_h+ss];
-            //     }
-            //     l.input_sum_int[ss] = l.input_sum_int[ss] * l.weight_data_uint8_zero_point[0];
-            // }
-            // 0.29s for whole net forward
-            // gemm_nn_uint8_int32_te(m, n, k, 1, a, k, b, n, c, n);
-            // cblas_gemm_s8u8s32(layout, transA, transB, offsetc, m, n, k, alpha,
-            //         a, lda, ao, b, ldb, bo, beta, c, ldc, &co);
             int co = 0;
-            #pragma omp single 
             cblas_gemm_s16s16s32(CblasRowMajor, CblasNoTrans, 
                                 CblasNoTrans, CblasFixOffset, 
                                 m, n, k, 
                                 1, a16, k, 0,
                                 b16, n, 0, 1, 
                                 c, n, &co);
-            #pragma omp single 
+
             cblas_gemm_s16s16s32(CblasRowMajor, CblasNoTrans, 
                                 CblasNoTrans, CblasFixOffset, 
                                 m, n, k, 
@@ -573,37 +564,31 @@ void forward_convolutional_layer_quant_inputi_outputi_mkl(convolutional_layer l,
                                 c, n, &co);
         }
 	}
-    double time2_1=what_time_is_it_now();
     // y_i = alpha1 * conv(x) --> M*(nz1z2-z1a2-z2a1+q1q2) + z3
-    int32_t min_32 = 0;
-    int32_t max_32 = 0;
     for (i = 0; i < l.out_c; ++i) {
         for (j = 0; j < l.out_w*l.out_h; ++j){
             int out_index = i*l.out_w*l.out_h + j;
-            // int32_t output_quant_value = l.output_int32[out_index] - l.input_sum_int[j];
             int32_t output_quant_value = l.output_int32[out_index];
-
-            int64_t temp_64bit = (output_quant_value + l.biases_int32[i])*l.M_value;
-            output_quant_value = temp_64bit*l.M0_right_shift_value;
-            // if activation is leaky relu
+            int64_t temp_64bit = (output_quant_value + l.biases_int32[i])*l.M_value[i];
+            output_quant_value = temp_64bit*l.M0_right_shift_value[i];
             switch (l.activation)
             {
             case LEAKY:
-                l.output_uint8_final[out_index] = output_quant_value < 0 ? (round(output_quant_value*0.1) + l.activ_data_uint8_zero_point[0]): (output_quant_value + l.activ_data_uint8_zero_point[0]); 
+                output_quant_value = output_quant_value < 0 ? (round(output_quant_value*0.1) + l.activ_data_uint8_zero_point[0]): (output_quant_value + l.activ_data_uint8_zero_point[0]); 
+                break;
+            case LINEAR:
+                output_quant_value = output_quant_value + l.activ_data_uint8_zero_point[0]; 
                 break;
             case RELU:
-                l.output_uint8_final[out_index] = output_quant_value + l.activ_data_uint8_zero_point[0]; 
+                output_quant_value = output_quant_value < l.active_limit ? l.activ_data_uint8_zero_point[0]: (output_quant_value + l.activ_data_uint8_zero_point[0]); 
                 break;
             default:
                 break;
             }
-            // l.output_uint8_final[out_index] = clamp(l.output_uint8_final[out_index], QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
-            // min_32 = min(min_32,  output_quant_value);
-            // max_32 = max(max_32,  output_quant_value);
+            l.output_uint8_final[out_index] = clamp(output_quant_value, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
         }
     }
     if(l.quant_stop_flag){
-        // printf("dequant from uint8 to float32 in layer %d\n", l.count);
         for (s = 0; s < l.out_c; ++s) {
             for (t = 0; t < l.out_w*l.out_h; ++t){
                 int out_index = s*l.out_w*l.out_h + t;
@@ -617,12 +602,14 @@ void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, net
 {
     int i, j, s, t;
     int batch_index, groups_index;
-    double time00=what_time_is_it_now();
     // y = conv(x) --> q1*q2
     int m = l.n/l.groups;
     int k = l.size*l.size*l.c/l.groups;
     int n = l.out_h*l.out_w;
     net.workspace_quant = calloc(1, l.out_h*l.out_w*l.size*l.size*l.c*sizeof(uint8_t));
+    for(int in = 0; in < l.out_h*l.out_w*l.size*l.size*l.c; ++in){
+        net.workspace_quant[in] = l.input_data_uint8_zero_point[0];
+    }
     for(batch_index = 0;batch_index < l.batch; batch_index++){
         for(groups_index = 0;groups_index < l.groups; groups_index++){
             uint8_t *a = l.weights_uint8 + groups_index*l.nweights/l.groups;
@@ -632,51 +619,51 @@ void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, net
             if (l.size == 1) {
                 b = im;
             } else {
-                im2col_cpu_uint8(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);    // here
+                im2col_cpu_uint8(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b, l.input_data_uint8_zero_point[0]);    // here
             }
-            #pragma omp parallel for
-            for (int ss = 0; ss < l.out_w*l.out_h; ++ss){ 
-                for (int tt = 0; tt < l.c*l.size*l.size; ++tt){
-                    l.input_sum_int[ss] += b[tt*l.out_w*l.out_h+ss];
+            // #pragma omp parallel for
+            for (int kk = 0; kk < l.out_c; ++kk){ 
+                for (int ss = 0; ss < l.out_w*l.out_h; ++ss){
+                    int index = kk * l.out_w*l.out_h + ss;
+                    for (int tt = 0; tt < l.c*l.size*l.size; ++tt){
+                        l.input_sum_int[index] += b[tt*l.out_w*l.out_h+ss];
+                    }
+                    l.input_sum_int[index] = l.input_sum_int[index] * l.weight_data_uint8_zero_point[kk];
                 }
-                l.input_sum_int[ss] = l.input_sum_int[ss] * l.weight_data_uint8_zero_point[0];
             }
             // 0.29s for whole net forward
-            gemm_nn_uint8_int32_te(m, n, k, 1, a, k, b, n, c, n);
+            gemm_nn_uint8_int32_te(m, n, k, 1, a, k, b, n, 0, c, n);
             // cblas_gemm_s8u8s32(layout, transA, transB, offsetc, m, n, k, alpha,
             //         a, lda, ao, b, ldb, bo, beta, c, ldc, &co);
+            gemm_nn_uint8_int32_te(m, n, k, -1, l.weight_data_uint8_zero_point, k, b, n, 1, c, n);
         }
 	}
-    double time2_1=what_time_is_it_now();
-    // y_i = alpha1 * conv(x) --> M*(nz1z2-z1a2-z2a1+q1q2) + z3
-    int32_t min_32 = 0;
-    int32_t max_32 = 0;
+    // // y_i = alpha1 * conv(x) --> M*(nz1z2-z1a2-z2a1+q1q2) + z3
     #pragma omp parallel for
     for (i = 0; i < l.out_c; ++i) {
         for (j = 0; j < l.out_w*l.out_h; ++j){
             int out_index = i*l.out_w*l.out_h + j;
-            int32_t output_quant_value = l.output_int32[out_index] - l.input_sum_int[j];
-            // int32_t output_quant_value = l.output_int32[out_index];
+            // int32_t output_quant_value = l.output_int32[out_index] - l.input_sum_int[out_index];
+            int32_t output_quant_value = l.output_int32[out_index];
 
-            int64_t temp_64bit = (output_quant_value + l.biases_int32[i])*l.M_value;
-            output_quant_value = temp_64bit*l.M0_right_shift_value;
-            // if activation is leaky relu
+            int64_t temp_64bit = (output_quant_value + l.biases_int32[i])*l.M_value[i];
+            output_quant_value = temp_64bit*l.M0_right_shift_value[i];
             switch (l.activation)
             {
             case LEAKY:
                 l.output_uint8_final[out_index] = output_quant_value < 0 ? (round(output_quant_value*0.1) + l.activ_data_uint8_zero_point[0]): (output_quant_value + l.activ_data_uint8_zero_point[0]); 
                 break;
+            case LINEAR:
             case RELU:
                 l.output_uint8_final[out_index] = output_quant_value + l.activ_data_uint8_zero_point[0]; 
                 break;
             default:
                 break;
             }
-            // l.output_uint8_final[out_index] = clamp(l.output_uint8_final[out_index], QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+            l.output_uint8_final[out_index] = clamp(l.output_uint8_final[out_index], QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
         }
     }
     if(l.quant_stop_flag){
-        // printf("dequant from uint8 to float32 in layer %d\n", l.count);
         #pragma omp parallel for
         for (s = 0; s < l.out_c; ++s) {
             for (t = 0; t < l.out_w*l.out_h; ++t){
@@ -690,67 +677,88 @@ void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, net
 void forward_convolutional_layer_quant_inputf_outputf(convolutional_layer l, network net)
 {
     int i, j;
-    int input_index;
-
-    for (input_index = 0; input_index < l.c*l.w*l.h; ++input_index) {
-        uint8_t input_quant_value = clamp(round(net.input[input_index] / *l.input_data_uint8_scales) + *l.input_data_uint8_zero_point, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
-        net.input_uint8[input_index] = input_quant_value;
-    }
-    int batch_index,groups_index;
+    int batch_index, groups_index;
+    // y = conv(x) --> q1*q2
     int m = l.n/l.groups;
     int k = l.size*l.size*l.c/l.groups;
     int n = l.out_h*l.out_w;
-
-    net.workspace_quant = calloc(1, l.out_h*l.out_w*l.size*l.size*l.c*sizeof(uint8_t));
-
+    net.workspace_quant16 = calloc(1, l.out_h*l.out_w*l.size*l.size*l.c*sizeof(int16_t));
+    for (int input_index = 0; input_index < l.c*l.w*l.h; ++input_index) {
+        int16_t input_quant_value = round(net.input[input_index] / l.input_data_uint8_scales[0]) + l.input_data_uint8_zero_point[0];
+        l.input_int16[input_index] = input_quant_value;
+    }
+    // for (int input_index = 0; input_index < l.c*l.w*l.h; ++input_index) {
+    //     l.input_int16[input_index] = (int16_t)net.input_uint8[input_index];
+    // }
     for(batch_index = 0;batch_index < l.batch; batch_index++){
         for(groups_index = 0;groups_index < l.groups; groups_index++){
-            uint8_t *a = l.weights_uint8 + groups_index*l.nweights/l.groups;
-            uint8_t *b = (uint8_t *)net.workspace_quant;
-            int32_t *c = l.output_int32 + (batch_index*l.groups + groups_index)*n*m;  
-            uint8_t *im =  net.input_uint8 + (batch_index*l.groups + groups_index)*l.c/l.groups*l.h*l.w;
+            int16_t *a16 = l.weights_int16 + groups_index*l.nweights/l.groups;
+            int16_t *b16 = (int16_t *)net.workspace_quant16;
+            int32_t *c = l.output_int32 + (batch_index*l.groups + groups_index)*n*m;
+            int16_t *im16 =  l.input_int16 + (batch_index*l.groups + groups_index)*l.c/l.groups*l.h*l.w;
             if (l.size == 1) {
-                b = im;
+                b16 = im16;
             } else {
-                im2col_cpu_uint8(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);    // here
+                im2col_cpu_int16(im16, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b16, l.input_data_uint8_zero_point[0]);    // here
             }
+            int co = 0;
+            cblas_gemm_s16s16s32(CblasRowMajor, CblasNoTrans, 
+                                CblasNoTrans, CblasFixOffset, 
+                                m, n, k, 
+                                1, a16, k, 0,
+                                b16, n, 0, 1, 
+                                c, n, &co);
 
-            for (int ss = 0; ss < l.out_w*l.out_h; ++ss){ 
-                for (int tt = 0; tt < l.c*l.size*l.size; ++tt){
-                    l.input_sum_int[ss] += b[tt*l.out_w*l.out_h+ss];
-                }
-                l.input_sum_int[ss] = l.input_sum_int[ss] * (*l.weight_data_uint8_zero_point);
-            }
-            double time=what_time_is_it_now();
-            // 0.29s for whole net forward
-            // gemm_nn_uint8_uint32(m, n, k, 1, a, k, b, n, c, n);
-
-            // 0.53s
-            // gemm_nn_uint8_int32_register(m, n, k, 1, a, k, b, n, c, n);
-            printf("the size of kernel is %d, time is %lf\n", l.size, what_time_is_it_now() - time);
-            // 0.53s
-	        // for (int t = 0; t < m; ++t) {
-            //     gemm_nn_uint8_int32_register(1, n, k, 1, a + t*k, k, b, n, c + t*n, n);
-            // }
+            cblas_gemm_s16s16s32(CblasRowMajor, CblasNoTrans, 
+                                CblasNoTrans, CblasFixOffset, 
+                                m, n, k, 
+                                -1, l.zero_point_int16, k, 0,
+                                b16, n, 0, 1, 
+                                c, n, &co);
         }
 	}
-
     // dequant
+    int num = 0, num_b = 0, temppp;
+    printf("active limit = %d\n", l.active_limit);
     for (i = 0; i < l.n; ++i) {
-        l.weight_data_uint8_scales[i] = *l.input_data_uint8_scales * (*l.weight_data_uint8_scales);
         for (j = 0; j < l.out_w*l.out_h; ++j){
             int out_index = i*l.out_w*l.out_h + j;
-            int32_t output_quant_value = l.output_int32[out_index] + l.weights_sum_int[i] - l.input_sum_int[j];
-            l.output[out_index] = output_quant_value * l.weight_data_uint8_scales[i];
+            // int64_t output_quant_value = l.output_int32[out_index] + l.biases_int32[i];
+            // l.output[out_index] = output_quant_value * rescale;
+            int64_t temp_64bit = (l.output_int32[out_index] + l.biases_int32[i])*l.M_value[i];
+            int32_t output_quant_value = temp_64bit*l.M0_right_shift_value[i];            
+            switch (l.activation)
+            {
+            case LEAKY:
+                temppp = output_quant_value < 0 ? (round(output_quant_value*0.1) + l.activ_data_uint8_zero_point[0]): (output_quant_value + l.activ_data_uint8_zero_point[0]);
+                if(temppp < 0){
+                    num_b++;  
+                }
+                l.output_uint8_final[out_index] = clamp(temppp, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+                break;
+            case LINEAR:
+                if(output_quant_value + l.activ_data_uint8_zero_point[0] < 0){
+                    num_b++;  
+                }
+                temppp = output_quant_value + l.activ_data_uint8_zero_point[0]; 
+                l.output_uint8_final[out_index] = clamp(temppp, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+                break;
+            case RELU:
+                output_quant_value = output_quant_value < 0 ? l.activ_data_uint8_zero_point[0]: (output_quant_value + l.activ_data_uint8_zero_point[0]); 
+                break;
+            default:
+                printf("rong way!!!!\n");
+                break;
+            }
+            int output_temp = (l.output_uint8_final[out_index] -  l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+            if(output_temp < 0 || output_temp > 255){
+            // if(output_temp < 0){
+                num++;
+            }
+            l.output[out_index] = (l.output_uint8_final[out_index] -  l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
         }
     }
-        
-    add_bias(l.output, l.biases, l.batch, l.n, l.out_h*l.out_w);
-
-    activate_array(l.output, l.out_c*l.out_h*l.out_w*l.batch, l.activation);
-
-    free(net.input_uint8);
-    free(net.workspace_quant);
+    printf("layer %d, invalid uint8 num is %d\n",l.count ,num );
 }
 #endif
 
@@ -766,7 +774,6 @@ void forward_convolutional_layer_nobn(convolutional_layer l, network net)
         binarize_cpu(net.input, l.c*l.h*l.w*l.batch, l.binary_input);
         net.input = l.binary_input;
     }
-
     int m = l.n/l.groups;
     int k = l.size*l.size*l.c/l.groups;
     int n = l.out_w*l.out_h;
@@ -832,6 +839,13 @@ void forward_convolutional_layer(convolutional_layer l, network net)
 
     activate_array(l.output, l.outputs*l.batch, l.activation);
     if(l.binary || l.xnor) swap_binary(&l);
+    //     char file_name[100];
+    // sprintf(file_name, "testcpu/%dcpu.txt", l.count);
+    // FILE *fp = fopen(file_name, "w+");
+    // for(int ii = 0; ii < l.outputs; ++ii){
+    //     // printf("layer: %d, num = %d\n", l.count, l.outputs);
+    //     fprintf(fp,"%f\n", l.output[ii]);
+    // }
 }
 
 void backward_convolutional_layer(convolutional_layer l, network net)

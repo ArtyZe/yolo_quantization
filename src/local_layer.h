@@ -12,7 +12,7 @@ typedef layer local_layer;
 #ifdef GPU
 void forward_local_layer_gpu(local_layer layer, network net);
 void backward_local_layer_gpu(local_layer layer, network net);
-void update_local_layer_gpu(local_layer layer, update_args a);
+void update_local_layer_gpu(local_layer layer, update_args a, network net);
 
 void push_local_layer(local_layer layer);
 void pull_local_layer(local_layer layer);

@@ -94,8 +94,10 @@ extern "C" void forward_maxpool_layer_gpu(maxpool_layer l, network net)
 
     forward_maxpool_layer_kernel<<<cuda_gridsize(n), BLOCK>>>(n, l.h, l.w, l.c, l.stride, l.size, l.pad, net.input_gpu, l.output_gpu, l.indexes_gpu);
     check_error(cudaPeekAtLastError());
-    
-    if(net.train && l.layer_quant_flag){
+
+    int step = *net.seen;
+    int quant_step = 10000;
+    if(net.train && l.layer_quant_flag && step > quant_step){
         cuda_pull_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
         uint8_t input_fake_quant = 0;
         fake_quant_with_min_max_channel(1, l.output, &input_fake_quant, l.out_c*l.out_w*l.out_h, l.min_activ_value, l.max_activ_value, 

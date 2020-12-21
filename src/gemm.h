@@ -15,7 +15,7 @@ void gemm_nn_int8_int32(int M, int N, int K, int8_t ALPHA,
 void gemm_nn_uint8_int32_te(int M, int N, int K, float ALPHA, 
         uint8_t *A, int lda, 
         uint8_t *B, int ldb,
-        int32_t *C, int ldc);
+        int BETA, int32_t *C, int ldc);
 
 void gemm_nn_uint8_uint32(int M, int N, int K, float ALPHA, 
         uint8_t *A, int lda, 

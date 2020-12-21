@@ -258,7 +258,7 @@ void push_connected_layer(layer l)
     }
 }
 
-void update_connected_layer_gpu(layer l, update_args a)
+void update_connected_layer_gpu(layer l, update_args a, network net)
 {
     float learning_rate = a.learning_rate*l.learning_rate_scale;
     float momentum = a.momentum;

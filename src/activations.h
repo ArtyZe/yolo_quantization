@@ -36,6 +36,8 @@ static inline float elu_activate(float x){return (x >= 0)*x + (x < 0)*(exp(x)-1)
 static inline float selu_activate(float x){return (x >= 0)*1.0507*x + (x < 0)*1.0507*1.6732*(exp(x)-1);}
 static inline float relie_activate(float x){return (x>0) ? x : .01*x;}
 static inline float ramp_activate(float x){return x*(x>0)+.1*x;}
+static inline float leaky6_activate(float x){return (x>6)? 6 : (x>0) ? x : .1*x;}
+static inline float relu6_activate(float x){return min(max(x, 0), 6);}
 static inline float leaky_activate(float x){return (x>0) ? x : .1*x;}
 static inline float tanh_activate(float x){return (exp(2*x)-1)/(exp(2*x)+1);}
 static inline float plse_activate(float x)
@@ -80,6 +82,8 @@ static inline float selu_gradient(float x){return (x >= 0)*1.0507 + (x < 0)*(x +
 static inline float relie_gradient(float x){return (x>0) ? 1 : .01;}
 static inline float ramp_gradient(float x){return (x>0)+.1;}
 static inline float leaky_gradient(float x){return (x>0) ? 1 : .1;}
+static inline float leaky6_gradient(float x){return (x>6)?0:(x>0) ? 1 : .1;}
+static inline float relu6_gradient(float x){return (x>0 && x<6);}
 static inline float tanh_gradient(float x){return 1-x*x;}
 static inline float plse_gradient(float x){return (x < 0 || x > 1) ? .01 : .125;}
 

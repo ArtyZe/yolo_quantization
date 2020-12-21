@@ -251,17 +251,24 @@ void forward_batchnorm_layer_quant_gpu(layer l, network net)
     if(net.train){
         fast_mean_gpu(l.output_bn_backup_gpu, l.batch, l.out_c, l.out_h*l.out_w, l.mean_gpu);
         fast_variance_gpu(l.output_bn_backup_gpu, l.mean_gpu, l.batch, l.out_c, l.out_h*l.out_w, l.variance_gpu);
+
+        scal_gpu(l.out_c, .99, l.rolling_mean_gpu, 1);
+        axpy_gpu(l.out_c, .01, l.mean_gpu, 1, l.rolling_mean_gpu, 1);
+        scal_gpu(l.out_c, .99, l.rolling_variance_gpu, 1);
+        axpy_gpu(l.out_c, .01, l.variance_gpu, 1, l.rolling_variance_gpu, 1);
         
         copy_gpu(l.outputs*l.batch, l.output_bn_backup_gpu, 1, l.x_gpu, 1);
 
         batch_normalize_weights_bias_gpu(l.weights_gpu, l.biases_gpu, l.rolling_variance_gpu, l.rolling_mean_gpu, l.scales_gpu, 
-                                         l.variance_gpu, l.mean_gpu, l.out_c, l.size*l.size*l.c);  
+                                         l.variance_gpu, l.mean_gpu, l.out_c, l.size*l.size*l.c, 0); 
+        normalize_gpu(l.output_bn_backup_gpu, l.mean_gpu, l.variance_gpu, l.batch, l.out_c, l.out_h*l.out_w);
+        copy_gpu(l.outputs*l.batch, l.output_bn_backup_gpu, 1, l.x_norm_gpu, 1); 
         set_zero_gpu(l.output_bn_backup_gpu, l.outputs);
      } else {
         l.mean_gpu = l.rolling_mean_gpu;
         l.variance_gpu = l.rolling_variance_gpu;
         batch_normalize_weights_bias_gpu(l.weights_gpu, l.biases_gpu, l.rolling_variance_gpu, l.rolling_mean_gpu, l.scales_gpu, 
-                                         l.variance_gpu, l.mean_gpu, l.out_c, l.size*l.size*l.c);
+                                         l.variance_gpu, l.mean_gpu, l.out_c, l.size*l.size*l.c, 1);
     } 
 }
 void backward_batchnorm_layer_gpu(layer l, network net)
@@ -320,6 +327,8 @@ void backward_batchnorm_layer_infer_gpu(layer l, network net)
 void backward_batchnorm_layer_quant_gpu(layer l, network net)
 {
     backward_batch_normalize_weights_gpu(l.weight_updates_gpu, l.rolling_variance_gpu, l.scales_gpu, l.out_c, l.size*l.size*l.c);
+    // scale_bias_gpu(l.delta_gpu, l.scales_gpu, l.batch, l.out_c, l.out_h*l.out_w);
+    // fast_mean_delta_gpu(l.delta_gpu, l.variance_gpu, l.batch, l.out_c, l.out_w*l.out_h, l.mean_delta_gpu);
     backward_scale_quant_gpu(l.weights_bn_backup_gpu, l.weight_updates_gpu, l.bias_updates_gpu, l.mean_gpu, l.variance_gpu, l.rolling_variance_gpu, l.batch, l.out_c, l.size*l.size*l.c/l.groups, l.scales_gpu, l.scale_updates_gpu);
 }
 #endif

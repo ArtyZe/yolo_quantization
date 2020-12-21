@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-layer make_upsample_layer(int batch, int w, int h, int c, int stride, int layer_quant_flag, int quant_stop_flag)
+layer make_upsample_layer(int batch, int w, int h, int c, int stride, int layer_quant_flag, int quant_stop_flag, int close_quantization)
 {
     layer l = {0};
     l.type = UPSAMPLE;
@@ -25,7 +25,8 @@ layer make_upsample_layer(int batch, int w, int h, int c, int stride, int layer_
     l.outputs = l.out_w*l.out_h*l.out_c;
     l.inputs = l.w*l.h*l.c;
     l.delta =  calloc(l.outputs*batch, sizeof(float));
-    l.output = calloc(l.outputs*batch, sizeof(float));;
+    l.output = calloc(l.outputs*batch, sizeof(float));
+    l.close_quantization = close_quantization;
 
     l.forward = forward_upsample_layer;
 #ifdef QUANTIZATION
@@ -39,6 +40,7 @@ layer make_upsample_layer(int batch, int w, int h, int c, int stride, int layer_
     l.quant_stop_flag = quant_stop_flag;
     if(l.layer_quant_flag && !l.close_quantization){
         l.forward = forward_upsample_layer_quant;
+        // l.forward = forward_upsample_layer;
     }
     else{
         l.forward = forward_upsample_layer;
@@ -128,7 +130,9 @@ void forward_upsample_layer_gpu(const layer l, network net)
     }else{
         upsample_gpu(net.input_gpu, l.w, l.h, l.c, l.batch, l.stride, 1, l.scale, l.output_gpu);
     }
-    if(net.train && l.layer_quant_flag){
+    int step = *net.seen;
+    int quant_step = 10000;
+    if(net.train && l.layer_quant_flag && step > quant_step){
         assert(l.reverse == 0);
         cuda_pull_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
         uint8_t input_fake_quant = 0;
@@ -141,10 +145,27 @@ void forward_upsample_layer_gpu(const layer l, network net)
 
 void backward_upsample_layer_gpu(const layer l, network net)
 {
+    // cuda_pull_array(net.delta_gpu, net.delta, l.inputs);
+    // int num = 0, num_l = 0;
+    // for(int ii = 0; ii < l.inputs; ++ii){
+    //     if (net.delta[ii] != 0){
+    //         num++;
+    //         // net.delta[ii] = 0;
+    //     }
+    // }
+    // printf("%d net.delta = %d, l.delta = %d\n", l.count, num, num_l);
     if(l.reverse){
         upsample_gpu(l.delta_gpu, l.out_w, l.out_h, l.c, l.batch, l.stride, 1, l.scale, net.delta_gpu);
     }else{
         upsample_gpu(net.delta_gpu, l.w, l.h, l.c, l.batch, l.stride, 0, l.scale, l.delta_gpu);
     }
+    // cuda_pull_array(net.delta_gpu, net.delta, l.inputs);
+    // num = 0;
+    // for(int ii = 0; ii < l.inputs; ++ii){
+    //     if (net.delta[ii] != 0){
+    //         num++;
+    //     }
+    // }
+    // printf("%d net.delta = %d, l.delta = %d\n", l.count, num, num_l);
 }
 #endif

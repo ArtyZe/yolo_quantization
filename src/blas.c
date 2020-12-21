@@ -40,8 +40,14 @@ void fake_quant_with_min_max_channel(int size_channel, float *input, uint8_t *in
             max_value = max(input[index], max_value);
             min_value = min(input[index], min_value);
         }
+
         //If this layer is activation, you need to update the min and max value with EMA 
-        if(func_type == ACTIV_QUANT || func_type == INPUT_QUANT){
+        if(func_type == INPUT_QUANT){
+            // printf("---------------\n");
+            printf("%s max = %.3f, min = %.3f\n", "Input", max_value, min_value);
+        }
+        if(func_type == ACTIV_QUANT){
+        // if(func_type == ACTIV_QUANT || func_type == INPUT_QUANT){
             const char* type_string = func_type == INPUT_QUANT ? "Input" : "Activ";
             if(min_activ_value[i] != 0 || max_activ_value[i] != 0){
                 min_activ_value[i] = min_activ_value[i] - ((min_activ_value[i] - min_value) * (1- decay));
@@ -49,12 +55,71 @@ void fake_quant_with_min_max_channel(int size_channel, float *input, uint8_t *in
             }else{
                 min_activ_value[i] = min_value;
                 max_activ_value[i] = max_value;
-                // printf("%s max = %.3f, min = %.3f\n", type_string, max_value, min_value);
             }
-            // printf(" EMA  max = %.3f, min = %.3f\n", max_activ_value[i], min_activ_value[i]);
             max_value = max_activ_value[i];
             min_value = min_activ_value[i];
             printf("%s max = %.3f, min = %.3f\n", type_string, max_value, min_value);
+        }
+        // If min and max are both zero, we should just return zero.
+        if(min_value == 0 && max_value == 0){
+            printf("max = %.3f, min = %.3f, \n",max_value, min_value);
+            assert(0);
+        }
+        float nudged_scale = 0.0f;
+        // this is really nudge function
+        const float quant_min_float = (float)quant_min;
+        const float quant_max_float = (float)quant_max;
+        assert(quant_min_float != quant_max_float);
+        nudged_scale = (max_value - min_value) / (quant_max_float - quant_min_float);
+        assert(nudged_scale != 0);
+        const double initial_zero_point = quant_min_float - min_value / nudged_scale;
+        // Store the S3 for activ quantization, convenient for us to quantization input in inference process
+        quantzation_scale[i] = nudged_scale;
+        uint8_t nudged_zero_point = 0;
+        if (initial_zero_point <= quant_min) {
+            nudged_zero_point = quant_min;
+        } else if (initial_zero_point >= quant_max) {
+            nudged_zero_point = quant_max;
+        } else {
+            nudged_zero_point = round(initial_zero_point);
+        }
+        quantization_zero_point[i] = nudged_zero_point;
+        float nudged_min = (quant_min_float - nudged_zero_point) * nudged_scale;
+        float nudged_max = (quant_max_float - nudged_zero_point) * nudged_scale;
+        const float nudged_scale_repl = nudged_scale;
+        for(int k = 0; k < size_feature; ++k){
+            int index_kernel = i*size_feature+k;
+            float temp_input = input[index_kernel];
+            float clamped = max(nudged_min, min(nudged_max, temp_input));
+            float clamped_shifted = clamped - nudged_min;
+            if(func_type == WEIGHT_QUANT){
+                input_int8[index_kernel] = round(clamped_shifted / nudged_scale_repl);
+            }
+            int nudged_value = clamp(round(clamped_shifted / nudged_scale_repl), QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+            if(func_type != WEIGHT_QUANT && (round(clamped_shifted / nudged_scale_repl) < 0 || round(clamped_shifted / nudged_scale_repl) > 255)){
+                printf("--------------------error quant value !\n");
+            }
+            float temp = nudged_value * nudged_scale_repl + nudged_min;
+            input[index_kernel] = temp;
+        }
+    }
+}
+
+void quant_weights_with_min_max_channel(int size_channel, float *input, uint8_t *input_int8, int16_t *input_int16, int16_t *zero_point_int16, int size_feature, 
+                                float *quantzation_scale, uint8_t *quantization_zero_point, int zp_flag) 
+{
+    int num = 0;
+    for(int i = 0; i < size_channel; ++i){
+        //Calculate min and max value of each kernel
+        //because out_mul is calculate by input_mul and weights_mul, so I can only set size_channel to 1 for input because of gemm shape error
+        float min_value = 0.0;
+        float max_value = 0.0;
+        int quant_min = QUANT_NEGATIVE_LIMIT; 
+        int quant_max = QUANT_POSITIVE_LIMIT;
+        for(int j = 0; j < size_feature; ++j){
+            int index = i*size_feature+j;
+            max_value = max(input[index], max_value);
+            min_value = min(input[index], min_value);
         }
         // If min and max are both zero, we should just return zero.
         if(min_value == 0 && max_value == 0){
@@ -83,30 +148,110 @@ void fake_quant_with_min_max_channel(int size_channel, float *input, uint8_t *in
             nudged_zero_point = round(initial_zero_point);
         }
         quantization_zero_point[i] = nudged_zero_point;
-
-        // if(func_type != INPUT_QUANT){
-            const float nudged_scale_repl = nudged_scale;
-            int print_flag = 1;
-            for(int k = 0; k < size_feature; ++k){
-                int index_kernel = i*size_feature+k;
-                float temp_input = input[index_kernel];
-                float clamped = max(min_value, min(max_value, input[index_kernel]));
-                float clamped_shifted = clamped - min_value;
-                if(func_type == WEIGHT_QUANT){
-                    input_int8[index_kernel] = round(clamped_shifted / nudged_scale_repl + 0.01f);
-                }
-                float temp = round(clamped_shifted / nudged_scale_repl + 0.01f) * nudged_scale_repl + min_value;
-                input[index_kernel] = temp;
-                // if (abs(input[index_kernel] - temp_input) >= 100){
-                    if (max_value < (input[index_kernel] - 10) && func_type != INPUT_QUANT){
-                        printf("orig = %f, dequant = %f\n", temp_input, input[index_kernel]);
-                        print_flag = 0;
-                    }
-                        
-                // }
-                // assert(abs(input[index_kernel] - temp_input) < 100);
+        for(int k = 0; k < size_feature; ++k){
+            int index_kernel = i*size_feature+k;
+            float temp_input = input[index_kernel];
+            temp_input = round(temp_input / quantzation_scale[i]) + quantization_zero_point[i];
+            if(temp_input < 0 || temp_input > 255){
+                num++;
             }
+            input_int8[index_kernel] = clamp(temp_input, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+
+            input_int16[index_kernel] = (int16_t)input_int8[index_kernel];
+            if(zp_flag){
+                zero_point_int16[index_kernel] = quantization_zero_point[i];
+            }
+        }
         // }
+    }
+    printf("invalid input num is %d\n", num);
+}
+
+// actually we don't need to quantization weights, because I got them from weights filt
+void quantization_weights_preprocess(network *net)
+{
+    int i;    
+    for (i = 0; i < net->n; ++i) {
+        layer *l = &net->layers[i];
+        if (l->type == CONVOLUTIONAL){
+            if(l->batch_normalize){
+                assert(l->groups != 0);
+                // printf("layer:  %2d, type:  [%5s], bn scale:   %f\n", l->count, "CONV", l->scales[0]);
+                batch_normalize_weights(l->weights, l->rolling_variance, l->scales, l->out_c, l->size*l->size*l->c/l->groups); 
+                batch_normalize_bias(l->biases, l->rolling_mean, l->rolling_variance, l->scales, l->out_c); 
+            }
+            if(l->layer_quant_flag){
+                // quant_weights_with_min_max_channel(l->n, l->weights, l->weights_uint8, l->weights_int16, l->zero_point_int16, l->c*l->size*l->size, l->weight_data_uint8_scales, l->weight_data_uint8_zero_point, 1);
+                for(int j = 0; j < l->n; ++j){
+                    for(int ji = 0; ji < l->c*l->size*l->size; ++ji){
+                        int index = j*l->c*l->size*l->size + ji;
+                        assert(l->weight_data_uint8_scales[j] != 0);
+                        // l->weights_uint8[index] = round(l->weights[index] / l->weight_data_uint8_scales[j]) + l->weight_data_uint8_zero_point[j];
+                        // l->weights_uint8[index] = clamp(l->weights_uint8[index], QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+                        l->weights_int16[index] = (int16_t)l->weights_uint8[index];
+                        l->zero_point_int16[index] = l->weight_data_uint8_zero_point[j];
+                    }
+                }
+                if (i > 0)
+                {
+                    l->input_data_uint8_scales[0] = net->layers[i-1].activ_data_uint8_scales[0];
+                    l->input_data_uint8_zero_point = net->layers[i-1].activ_data_uint8_zero_point;
+                }
+            }
+
+        }
+        extern const char* type_array[];
+        int inheritance_type = (l->type == MAXPOOL || l->type == ROUTE || l->type == UPSAMPLE);
+        if(inheritance_type && l->layer_quant_flag){
+            printf("layer:  %2d, type:  [%5s], activ quant scale:   %f, activ quant zero_p:   %d\n", l->count, type_array[l->type], l->activ_data_uint8_scales[0], l->activ_data_uint8_zero_point[0]);
+            printf("----------------------------\n");
+        }
+    }
+}
+
+// actually we don't need to quantization weights, because I got them from weights filt
+void quantization_activations_preprocess(network *net, float *input)
+{
+    int i;
+    net->input = input;
+    for (i = 0; i < net->n; ++i) {
+        layer *l = &net->layers[i];
+        if(i == 0){
+            // int num =0;
+            // for (int input_index = 0; input_index < net->c*net->w*net->h; ++input_index) {
+            //     assert(l->input_data_uint8_scales[0] != 0);
+            //     int input_quant_value_temp = round(net->input[input_index] / l->input_data_uint8_scales[0] + l->input_data_uint8_zero_point[0]);
+            //     if(input_quant_value_temp < 0 || input_quant_value_temp > 255){
+            //         num++;
+            //     }
+                
+            //     uint8_t input_quant_value = clamp(round(net->input[input_index] / l->input_data_uint8_scales[0] + l->input_data_uint8_zero_point[0]), QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+            //     // l_0->input_int16[input_index] = input_quant_value;
+            //     net->input_uint8[input_index] = input_quant_value;
+            // }
+            // printf("input invalid num is %d\n", num);
+            int temp = 0;
+            quant_weights_with_min_max_channel(1, net->input, net->input_uint8, l->input_int16, &temp, net->c*net->w*net->h, l->input_data_uint8_scales, l->input_data_uint8_zero_point, 0);
+        }
+        if (l->type == CONVOLUTIONAL && l->layer_quant_flag){
+            for(int ii = 0; ii < l->n; ++ii){
+                l->mult_zero_point[ii] = l->c*l->size*l->size*l->input_data_uint8_zero_point[0]*l->weight_data_uint8_zero_point[ii];
+                for (int jj = 0; jj < l->c*l->size*l->size; ++jj){
+                    l->weights_sum_int[ii] += l->weights_uint8[ii*l->c*l->size*l->size+jj];
+                }
+                l->weights_sum_int[ii] =  l->mult_zero_point[ii] - l->weights_sum_int[ii] * l->input_data_uint8_zero_point[0];
+                assert(l->activ_data_uint8_scales[0] != 0);
+                l->M[ii] = l->input_data_uint8_scales[0] * l->weight_data_uint8_scales[ii] / l->activ_data_uint8_scales[0];
+                quant_multi_smaller_than_one_to_scale_and_shift(l->M[ii], &l->M0[ii], &l->M0_right_shift[ii]);
+                l->M0_right_shift_value[ii] = pow(2, -l->M0_right_shift[ii]);
+                l->M_value[ii] = pow(2, -31) * l->M0[ii];
+            }
+            l->active_limit = round(l->activ_data_uint8_zero_point[0]);
+            for(int jj = 0; jj < l->out_c; ++jj){
+                assert(l->input_data_uint8_scales[0] != 0);
+                l->biases_int32[jj] = l->biases[jj] / (l->input_data_uint8_scales[0] * l->weight_data_uint8_scales[jj])  + l->weights_sum_int[jj];
+            }
+        }
     }
 }
 
@@ -116,60 +261,79 @@ void quantization_weights_and_activations(network *net)
     int i;    
     for (i = 0; i < net->n; ++i) {
         layer *l = &net->layers[i];
-        if (l->type == CONVOLUTIONAL && l->layer_quant_flag){
+        if(i == 0){
+            // int num =0;
+            // for (int input_index = 0; input_index < net->c*net->w*net->h; ++input_index) {
+            //     assert(l->input_data_uint8_scales[0] != 0);
+            //     int input_quant_value_temp = round(net->input[input_index] / l->input_data_uint8_scales[0] + l->input_data_uint8_zero_point[0]);
+            //     if(input_quant_value_temp < 0 || input_quant_value_temp > 255){
+            //         num++;
+            //     }
+                
+            //     uint8_t input_quant_value = clamp(round(net->input[input_index] / l->input_data_uint8_scales[0] + l->input_data_uint8_zero_point[0]), QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+            //     // l_0->input_int16[input_index] = input_quant_value;
+            //     net->input_uint8[input_index] = input_quant_value;
+            // }
+            // printf("input invalid num is %d\n", num);
+            int temp = 0;
+            quant_weights_with_min_max_channel(1, net->input, net->input_uint8, l->input_int16, &temp, net->c*net->w*net->h, l->input_data_uint8_scales, l->input_data_uint8_zero_point, 0);
+        }
+        if (l->type == CONVOLUTIONAL){
             if(l->batch_normalize){
                 assert(l->groups != 0);
+                // printf("layer:  %2d, type:  [%5s], bn scale:   %f\n", l->count, "CONV", l->scales[0]);
                 batch_normalize_weights(l->weights, l->rolling_variance, l->scales, l->out_c, l->size*l->size*l->c/l->groups); 
                 batch_normalize_bias(l->biases, l->rolling_mean, l->rolling_variance, l->scales, l->out_c); 
             }
-            for(int j = 0; j < l->nweights; ++j){
-                assert(l->weight_data_uint8_scales[0] != 0);
-                l->weights_uint8[j] = round(l->weights[j] / l->weight_data_uint8_scales[0]) + l->weight_data_uint8_zero_point[0];
-                l->weights_uint8[j] = clamp(l->weights_uint8[j], QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
-                l->weights_int16[j] = (int16_t)l->weights_uint8[j];
-                l->zero_point_int16[j] = l->weight_data_uint8_zero_point[0];
-            }
-
-            // *l->input_data_uint8_scales = *last_l->activ_data_uint8_scales;
-            // *l->input_data_uint8_zero_point = *last_l->activ_data_uint8_zero_point;
-            if (i > 0)
-            {
-                l->input_data_uint8_scales[0] = net->layers[i-1].activ_data_uint8_scales[0];
-                l->input_data_uint8_zero_point = net->layers[i-1].activ_data_uint8_zero_point;
-            }
-            
-            l->mult_zero_point = l->c*l->size*l->size*l->input_data_uint8_zero_point[0]*l->weight_data_uint8_zero_point[0];
-
-            for(int ii = 0; ii < l->n; ++ii){
-                for (int jj = 0; jj < l->c*l->size*l->size; ++jj){
-                    l->weights_sum_int[ii] += l->weights_uint8[ii*l->c*l->size*l->size+jj];
+            if(l->layer_quant_flag){
+                // quant_weights_with_min_max_channel(l->n, l->weights, l->weights_uint8, l->weights_int16, l->zero_point_int16, l->c*l->size*l->size, l->weight_data_uint8_scales, l->weight_data_uint8_zero_point, 1);
+                for(int j = 0; j < l->n; ++j){
+                    for(int ji = 0; ji < l->c*l->size*l->size; ++ji){
+                        int index = j*l->c*l->size*l->size + ji;
+                        assert(l->weight_data_uint8_scales[j] != 0);
+                        // l->weights_uint8[index] = round(l->weights[index] / l->weight_data_uint8_scales[j]) + l->weight_data_uint8_zero_point[j];
+                        // l->weights_uint8[index] = clamp(l->weights_uint8[index], QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+                        l->weights_int16[index] = (int16_t)l->weights_uint8[index];
+                        l->zero_point_int16[index] = l->weight_data_uint8_zero_point[j];
+                    }
                 }
-                    l->weights_sum_int[ii] =  l->mult_zero_point - l->weights_sum_int[ii] * l->input_data_uint8_zero_point[0];
-            }
-            assert(l->activ_data_uint8_scales[0] != 0);
-            l->M = l->input_data_uint8_scales[0] * l->weight_data_uint8_scales[0] / l->activ_data_uint8_scales[0];
-            quant_multi_smaller_than_one_to_scale_and_shift(l->M, &l->M0, &l->M0_right_shift);
-            l->M0_right_shift_value = pow(2, -l->M0_right_shift);
-            l->M_value = pow(2, -31) * l->M0;
-            printf("M = %f, M0 = %d, shift = %d\n", l->M, l->M0, l->M0_right_shift);
-            printf("layer:  %2d, type:  [%5s], input quant scale:   %f, input quant zero_p:   %d\n", l->count, "CONV", l->input_data_uint8_scales[0], l->input_data_uint8_zero_point[0]);
-            printf("layer:  %2d, type:  [%5s], weights quant scale: %f, weights quant zero_p: %d\n", l->count, "CONV", l->weight_data_uint8_scales[0], l->weight_data_uint8_zero_point[0]);
-            printf("layer:  %2d, type:  [%5s], activ quant scale:   %f, activ quant zero_p:   %d\n", l->count, "CONV", l->activ_data_uint8_scales[0], l->activ_data_uint8_zero_point[0]);
-            printf("----------------------------\n");
+                if (i > 0)
+                {
+                    l->input_data_uint8_scales[0] = net->layers[i-1].activ_data_uint8_scales[0];
+                    l->input_data_uint8_zero_point = net->layers[i-1].activ_data_uint8_zero_point;
+                }
+                for(int ii = 0; ii < l->n; ++ii){
+                    l->mult_zero_point[ii] = l->c*l->size*l->size*l->input_data_uint8_zero_point[0]*l->weight_data_uint8_zero_point[ii];
+                    for (int jj = 0; jj < l->c*l->size*l->size; ++jj){
+                        l->weights_sum_int[ii] += l->weights_uint8[ii*l->c*l->size*l->size+jj];
+                    }
+                        l->weights_sum_int[ii] =  l->mult_zero_point[ii] - l->weights_sum_int[ii] * l->input_data_uint8_zero_point[0];
+                    assert(l->activ_data_uint8_scales[0] != 0);
+                    l->M[ii] = l->input_data_uint8_scales[0] * l->weight_data_uint8_scales[ii] / l->activ_data_uint8_scales[0];
+                    quant_multi_smaller_than_one_to_scale_and_shift(l->M[ii], &l->M0[ii], &l->M0_right_shift[ii]);
+                    l->M0_right_shift_value[ii] = pow(2, -l->M0_right_shift[ii]);
+                    l->M_value[ii] = pow(2, -31) * l->M0[ii];
+                }
+                l->active_limit = round(l->activ_data_uint8_zero_point[0]);
 
-            for(int jj = 0; jj < l->out_c; ++jj){
-                assert(l->input_data_uint8_scales[0] != 0);
-                l->biases_int32[jj] = l->biases[jj] / (l->input_data_uint8_scales[0] * l->weight_data_uint8_scales[0])  + l->weights_sum_int[jj];
+                printf("layer:  %2d, type:  [%5s], input quant scale:   %f, input quant zero_p:   %d\n", l->count, "CONV", l->input_data_uint8_scales[0], l->input_data_uint8_zero_point[0]);
+                printf("layer:  %2d, type:  [%5s], weights quant scale: %f, weights quant zero_p: %d\n", l->count, "CONV", l->weight_data_uint8_scales[0], l->weight_data_uint8_zero_point[0]);
+                printf("layer:  %2d, type:  [%5s], activ quant scale:   %f, activ quant zero_p:   %d\n", l->count, "CONV", l->activ_data_uint8_scales[0], l->activ_data_uint8_zero_point[0]);
+                printf("----------------------------\n");
+
+                for(int jj = 0; jj < l->out_c; ++jj){
+                    assert(l->input_data_uint8_scales[0] != 0);
+                    l->biases_int32[jj] = l->biases[jj] / (l->input_data_uint8_scales[0] * l->weight_data_uint8_scales[jj])  + l->weights_sum_int[jj];
+                }
+
             }
 
         }
         extern const char* type_array[];
         int inheritance_type = (l->type == MAXPOOL || l->type == ROUTE || l->type == UPSAMPLE);
         if(inheritance_type && l->layer_quant_flag){
-            // printf("layer:  %2d, type:  [%5s], activ quant scale:   %f, activ quant zero_p:   %d\n", l->count, type_array[l->type], l->activ_data_uint8_scales[0], l->activ_data_uint8_zero_point[0]);
-            // printf("----------------------------\n");
-            // l->activ_data_uint8_scales[0] =  net->layers[i-1].activ_data_uint8_scales[0];
-            // l->activ_data_uint8_zero_point[0] =  net->layers[i-1].activ_data_uint8_zero_point[0];
+            printf("layer:  %2d, type:  [%5s], activ quant scale:   %f, activ quant zero_p:   %d\n", l->count, type_array[l->type], l->activ_data_uint8_scales[0], l->activ_data_uint8_zero_point[0]);
+            printf("----------------------------\n");
         }
     }
 }
@@ -188,7 +352,12 @@ void free_net(network * net){
                         l.output_int32[out_index] = 0;
                 }
             }
-
+            if(i == 0){
+                for (int ii = 0; ii < l.c*l.h*l.w; ++ii) {
+                    net->input_uint8[ii] = 0;
+                    l.input_int16[ii]=0;
+                }
+            }
         }
     }
 }

@@ -66,7 +66,7 @@ typedef struct{
 tree *read_tree(char *filename);
 
 typedef enum{
-    LOGISTIC, RELU, RELIE, LINEAR, RAMP, TANH, PLSE, LEAKY, ELU, LOGGY, STAIR, HARDTAN, LHTAN, SELU
+    LOGISTIC, RELU, RELIE, LINEAR, RAMP, TANH, PLSE, LEAKY6, RELU6, LEAKY, ELU, LOGGY, STAIR, HARDTAN, LHTAN, SELU
 } ACTIVATION;
 
 typedef enum{
@@ -141,7 +141,7 @@ struct layer{
     void (*update)    (struct layer, update_args);
     void (*forward_gpu)   (struct layer, struct network);
     void (*backward_gpu)  (struct layer, struct network);
-    void (*update_gpu)    (struct layer, update_args);
+    void (*update_gpu)    (struct layer, update_args, struct network);
 
     char *align_bit_weights;
     float *mean_arr;
@@ -162,12 +162,11 @@ struct layer{
     int32_t *input_sum_int;
     int32_t *weights_sum_int;
 
-    uint32_t mult_zero_point;
+    uint32_t *mult_zero_point;
 
     uint8_t *input_data_uint8_zero_point;
     uint8_t *activ_data_uint8_zero_point;
     uint8_t *weight_data_uint8_zero_point;
-    uint8_t *output_data_uint8_zero_point;
     uint8_t *biases_data_uint8_zero_point;
 
     int8_t *weight_data_int8_zero_point;
@@ -181,14 +180,16 @@ struct layer{
     int quant_stop_flag;
     int fisrt_time_train_fag;
 
-    float M;
-    int32_t M0;
-    double M_value;
-    int M0_right_shift;
-    double M0_right_shift_value;
+    float *M;
+    int32_t *M0;
+    double *M_value;
+    int *M0_right_shift;
+    double *M0_right_shift_value;
+    int active_limit;
 
     uint8_t * input_uint8;
     uint8_t * weights_uint8;
+    float* weights_norm;
     int32_t * biases_int32;
     int32_t * output_int32;
     uint8_t * output_uint8_final;
@@ -456,6 +457,7 @@ struct layer{
     float *max_activ_value_gpu;
 
     uint8_t * weights_quant_gpu;
+    float * weights_norm_gpu;
 
     float * weights_bn_backup_gpu;
     float * biases_bn_backup_gpu;
@@ -583,6 +585,7 @@ typedef struct network{
     float saturation;
     float hue;
     int random;
+    int quant_start_step;
 
     int gpu_index;
     tree *hierarchy;
@@ -817,7 +820,6 @@ int option_find_int_quiet(list *l, char *key, int def);
 network *parse_network_cfg(char *filename, int close_quantization);
 void save_weights(network *net, char *filename);
 void load_weights(network *net, char *filename);
-void load_conv_weights(network *net, char *filename);
 void save_weights_upto(network *net, char *filename, int cutoff);
 void load_weights_upto(network *net, char *filename, int start, int cutoff);
 
@@ -874,7 +876,9 @@ matrix network_predict_data(network *net, data test);
 image **load_alphabet();
 image get_network_image(network *net);
 float *network_predict(network *net, float *input);
-void quantization_weights_and_activations(network *net);  
+void quantization_weights_and_activations(network *net); 
+void quantization_weights_preprocess(network *net);
+void quantization_activations_preprocess(network *net, float *input);
 void free_net(network *net); 
 
 int network_width(network *net);
@@ -885,6 +889,9 @@ detection *get_network_boxes(network *net, int w, int h, float thresh, float hie
 void free_detections(detection *dets, int n);
 
 void reset_network_state(network *net, int b);
+
+void quant_weights_with_min_max_channel(int size_channel, float *input, uint8_t *input_int8, int16_t *input_int16, int16_t *zero_point_int16, int size_feature, 
+                                float *quantzation_scale, uint8_t *quantization_zero_point, int zp_flag);
 
 char **get_labels(char *filename);
 void do_nms_obj(detection *dets, int total, int classes, float thresh);

@@ -35,6 +35,8 @@ __device__ float selu_activate_kernel(float x){return (x >= 0)*1.0507f*x + (x < 
 __device__ float relie_activate_kernel(float x){return (x>0) ? x : .01f*x;}
 __device__ float ramp_activate_kernel(float x){return x*(x>0)+.1f*x;}
 __device__ float leaky_activate_kernel(float x){return (x>0) ? x : .1f*x;}
+__device__ float leaky6_activate_kernel(float x){return (x>6)? 6:(x>0) ? x : .1f*x;}
+__device__ float relu6_activate_kernel(float x){return (x>6)? 6:(x>0) ? x : 0;}
 __device__ float tanh_activate_kernel(float x){return (2.f/(1 + expf(-2*x)) - 1);}
 __device__ float plse_activate_kernel(float x)
 {
@@ -68,6 +70,8 @@ __device__ float selu_gradient_kernel(float x){return (x >= 0)*1.0507 + (x < 0)*
 __device__ float relie_gradient_kernel(float x){return (x>0) ? 1 : .01f;}
 __device__ float ramp_gradient_kernel(float x){return (x>0)+.1f;}
 __device__ float leaky_gradient_kernel(float x){return (x>0) ? 1 : .1f;}
+__device__ float leaky6_gradient_kernel(float x){return (x>0 && x<6);}
+__device__ float relu6_gradient_kernel(float x){return (x>6) ? 0:(x>0) ? 1 : .1f;}
 __device__ float tanh_gradient_kernel(float x){return 1-x*x;}
 __device__ float plse_gradient_kernel(float x){return (x < 0 || x > 1) ? .01f : .125f;}
 __device__ float stair_gradient_kernel(float x)
@@ -95,6 +99,10 @@ __device__ float activate_kernel(float x, ACTIVATION a)
             return relie_activate_kernel(x);
         case RAMP:
             return ramp_activate_kernel(x);
+        case LEAKY6:
+            return leaky6_activate_kernel(x);
+        case RELU6:
+            return relu6_activate_kernel(x);
         case LEAKY:
             return leaky_activate_kernel(x);
         case TANH:
@@ -130,6 +138,10 @@ __device__ float gradient_kernel(float x, ACTIVATION a)
             return relie_gradient_kernel(x);
         case RAMP:
             return ramp_gradient_kernel(x);
+        case LEAKY6:
+            return leaky6_gradient_kernel(x);
+        case RELU6:
+            return relu6_gradient_kernel(x);
         case LEAKY:
             return leaky_gradient_kernel(x);
         case TANH:

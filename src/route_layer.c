@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-route_layer make_route_layer(int batch, int n, int *input_layers, int *input_sizes, int layer_quant_flag, int quant_stop_flag)
+route_layer make_route_layer(int batch, int n, int *input_layers, int *input_sizes, int layer_quant_flag, int quant_stop_flag, int close_quantization)
 {
     fprintf(stderr,"route ");
     route_layer l = {0};
@@ -22,6 +22,7 @@ route_layer make_route_layer(int batch, int n, int *input_layers, int *input_siz
     printf("\n");
     l.outputs = outputs;
     l.inputs = outputs;
+    l.close_quantization = close_quantization;
     l.delta =  calloc(outputs*batch, sizeof(float));
     l.output = calloc(outputs*batch, sizeof(float));
     l.forward = forward_route_layer;
@@ -37,6 +38,7 @@ route_layer make_route_layer(int batch, int n, int *input_layers, int *input_siz
     if(l.layer_quant_flag && !l.close_quantization){
     // if(l.layer_quant_flag && !l.close_quantization && l.n == 1){
         l.forward = forward_route_layer_quant;
+        // l.forward = forward_route_layer;
     }
     else{
         l.forward = forward_route_layer;
@@ -156,18 +158,30 @@ void forward_route_layer_gpu(const route_layer l, network net)
         }
         offset += input_size;
     }
-    // if(net.train && l.layer_quant_flag){
-    //     cuda_pull_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
-    //     uint8_t input_fake_quant = 0;
-    //     fake_quant_with_min_max_channel(1, l.output, &input_fake_quant, l.out_c*l.out_w*l.out_h, l.min_activ_value, l.max_activ_value, 
-    //                                     l.activ_data_uint8_scales, l.activ_data_uint8_zero_point, ACTIV_QUANT, 0.999);
-    //     assert(l.activ_data_uint8_scales[0] > 0);
-    //     cuda_push_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
-    // }
+    int step = *net.seen;
+    int quant_step = 10000;
+    if(net.train && l.layer_quant_flag && step > quant_step && l.n > 1){
+    // if(net.train && l.layer_quant_flag && l.n > 1){
+        cuda_pull_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
+        uint8_t input_fake_quant = 0;
+        fake_quant_with_min_max_channel(1, l.output, &input_fake_quant, l.out_c*l.out_w*l.out_h, l.min_activ_value, l.max_activ_value, 
+                                        l.activ_data_uint8_scales, l.activ_data_uint8_zero_point, ACTIV_QUANT, 0.999);
+        assert(l.activ_data_uint8_scales[0] > 0);
+        cuda_push_array(l.output_gpu, l.output, l.out_c*l.out_w*l.out_h);
+    }
 }
 
 void backward_route_layer_gpu(const route_layer l, network net)
 {
+    // cuda_pull_array(net.delta_gpu, net.delta, l.input_sizes[0]);
+    // int num = 0, num_l = 0;
+    // for(int ii = 0; ii < l.input_sizes[0]; ++ii){
+    //     if (net.delta[ii] != 0){
+    //         num++;
+    //         net.delta[ii] = 0;
+    //     }
+    // }
+    // printf("%d net.delta = %d, l.delta = %d\n", l.count, num, num_l);
     int i, j;
     int offset = 0;
     for(i = 0; i < l.n; ++i){
@@ -177,6 +191,8 @@ void backward_route_layer_gpu(const route_layer l, network net)
         for(j = 0; j < l.batch; ++j){
             axpy_gpu(input_size, 1, l.delta_gpu + offset + j*l.outputs, 1, delta + j*input_size, 1);
         }
+        // cuda_pull_array(net.layers[index].delta_gpu, net.layers[index].delta, input_size);
+        // printf("%d route net.delta = %f\n", net.layers[index].count, net.layers[index].delta[100]);
         offset += input_size;
     }
 }

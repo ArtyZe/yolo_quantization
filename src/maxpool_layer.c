@@ -18,7 +18,7 @@ image get_maxpool_delta(maxpool_layer l)
     return float_to_image(w,h,c,l.delta);
 }
 
-maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int stride, int padding, int layer_quant_flag, int quant_stop_flag)
+maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int stride, int padding, int layer_quant_flag, int quant_stop_flag, int close_quantization, int count)
 {
     maxpool_layer l = {0};
     l.type = MAXPOOL;
@@ -27,6 +27,7 @@ maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int s
     l.w = w;
     l.c = c;
     l.pad = padding;
+    l.close_quantization = close_quantization;
     l.out_w = (w + padding - size)/stride + 1;
     l.out_h = (h + padding - size)/stride + 1;
     l.out_c = c;
@@ -41,6 +42,7 @@ maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int s
 
     l.backward = backward_maxpool_layer;
     l.forward = forward_maxpool_layer;
+    l.count = count;
 #ifdef QUANTIZATION
 	l.activ_data_uint8_scales = calloc(1, sizeof(float));
     l.activ_data_uint8_zero_point = calloc(1, sizeof(uint8_t));
@@ -50,9 +52,14 @@ maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int s
     l.layer_quant_flag = layer_quant_flag;
     l.quant_stop_flag = quant_stop_flag;
     l.input_uint8 = calloc(output_size, sizeof(uint8_t));
+    // printf("layer %d, close %d, quant %d\n", l.count, l.close_quantization, l.layer_quant_flag);
     if(l.layer_quant_flag && !l.close_quantization){
         l.forward = forward_maxpool_layer_quant;
+        // l.forward = forward_maxpool_layer;
     }
+    // else if(l.layer_quant_flag && l.close_quantization && l.count  < 6){
+    //     l.forward = forward_maxpool_layer_quant;
+    // }
     else{
         l.forward = forward_maxpool_layer;
     }
@@ -108,13 +115,23 @@ void forward_maxpool_layer_quant(const maxpool_layer l, network net)
     int h = l.out_h;
     int w = l.out_w;
     int c = l.c;
-    #pragma omp parallel for
+    
+    // char file_name[100];
+    // sprintf(file_name, "testcpu/%dpool.txt", l.count);
+    // FILE *fp = fopen(file_name, "w+");
+    // for(int ii = 0; ii < l.inputs; ++ii){
+    //     // printf("layer: %d, num = %d\n", l.count, l.count);
+    //     fprintf(fp,"%d\n", net.input_uint8[ii]);
+    // }
+    // fclose(fp);
+    // printf("quant %d\n",l.count);
+    // #pragma omp parallel for
     for(b = 0; b < l.batch; ++b){
         for(k = 0; k < c; ++k){
             for(i = 0; i < h; ++i){
                 for(j = 0; j < w; ++j){
                     int out_index = j + w*(i + h*(k + c*b));
-                    float max = -FLT_MAX;
+                    uint8_t max = 0;
                     int max_i = -1;
                     for(n = 0; n < l.size; ++n){
                         for(m = 0; m < l.size; ++m){
@@ -134,6 +151,14 @@ void forward_maxpool_layer_quant(const maxpool_layer l, network net)
             }
         }
     }
+    // char file_name1[100];
+    // sprintf(file_name1, "testcpu/%dMAXpool.txt", l.count);
+    // FILE *fp1 = fopen(file_name1, "w+");
+    // for(int iic = 0; iic < l.outputs; ++iic){
+    //     // printf("layer: %d, num = %d\n", l.count, l.count);
+    //     fprintf(fp1,"%d\n", l.output_uint8_final[iic]);
+    // }
+    // fclose(fp1);
     if(l.quant_stop_flag){
         // printf("dequant from uint8 to float32 in layer %d\n", l.count);
         #pragma omp parallel for
@@ -154,7 +179,14 @@ void forward_maxpool_layer(const maxpool_layer l, network net)
 
     int h = l.out_h;
     int w = l.out_w;
-    int c = l.c;    
+    int c = l.c;
+    // char file_name[100];
+    // sprintf(file_name, "test/input_%d.txt", l.count);
+    // FILE *fp = fopen(file_name, "w+");
+    // for(int iin = 0; iin < l.inputs; ++iin){
+    //     fprintf(fp, "%d\n", l.input_int16[iin]);
+    // }
+    // fclose(fp);
     for(b = 0; b < l.batch; ++b){
         for(k = 0; k < c; ++k){
             for(i = 0; i < h; ++i){

@@ -8,7 +8,6 @@ The code is to quantization **float32 network** of darknet to **uint8 network** 
 [The Commond to Run My Project]
 =========
 Train: 
-
 >**set GPU=1 in Makefile**
 
 	make -j8
@@ -31,7 +30,7 @@ Test:
 =========
  | quantization | inference time (intel chip 64bit) | recall | precision | f1 score |
  | :------: | :------: | :------: | :------: | :------: |
- | darknet | 0.92s | 74.43 | 89.45 | 81.25| 
- | quantization mine | 0.41s | 92.74 | 90.67 | 91.70 |
+ | darknet | 0.83s | 74.43 | 89.45 | 81.25| 
+ | quantization mine | 0.34s | 90.08 | 91.83 | 90.94 |
 
 

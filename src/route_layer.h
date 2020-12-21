@@ -6,7 +6,7 @@
 
 typedef layer route_layer;
 
-route_layer make_route_layer(int batch, int n, int *input_layers, int *input_sizes, int layer_quant_flag, int quant_stop_flag);
+route_layer make_route_layer(int batch, int n, int *input_layers, int *input_sizes, int layer_quant_flag, int quant_stop_flag, int close_quantization);
 void forward_route_layer(const route_layer l, network net);
 void forward_route_layer_quant(const route_layer l, network net);
 void backward_route_layer(const route_layer l, network net);

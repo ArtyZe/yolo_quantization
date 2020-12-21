@@ -62,14 +62,20 @@ void gemm_nn_uint8_uint32(int M, int N, int K, float ALPHA,
 void gemm_nn_uint8_int32_te(int M, int N, int K, float ALPHA, 
         uint8_t *A, int lda, 
         uint8_t *B, int ldb,
-        int32_t *C, int ldc)
+        int BETA, int32_t *C, int ldc)
 {
     int i,j,k;
+    int ii, jj;
+    for(ii = 0; ii < M; ++ii){
+        for(jj = 0; jj < N; ++jj){
+            C[ii*ldc + jj] *= BETA;
+        }
+    }
     #pragma omp parallel for
     for(i = 0; i < M; ++i){
         for(k = 0; k < K; ++k){
             for(j = 0; j < N; ++j){
-                C[i*ldc+j] += A[i*lda+k]*B[k*ldb+j];
+                C[i*ldc+j] += ALPHA*A[i*lda+k]*B[k*ldb+j];
             }         		
         }
     }
@@ -97,7 +103,9 @@ void gemm_nn_int8_int32(int M, int N, int K, int8_t ALPHA,
     }
     free(c_tmp);
 }
-
+// partly got from:
+// https://github.com/AlexeyAB/yolo2_light
+// thanks to his work
 // 0.89 sec
 void gemm_nn_uint8_int32_register(int M, int N, int K, uint8_t ALPHA,
     uint8_t *A, int lda,
@@ -311,9 +319,6 @@ void gemm_nn_int8_int16(int M, int N, int K, int8_t ALPHA,
     free(c_tmp);
 }
 #endif
-
-
-
 
 void gemm_bin(int M, int N, int K, float ALPHA, 
         char  *A, int lda, 

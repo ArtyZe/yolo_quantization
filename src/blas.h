@@ -79,7 +79,7 @@ void l2normalize_gpu(float *x, float *dx, int batch, int filters, int spatial);
 void set_zero_gpu(float * X, int N);
 void backward_batch_normalize_weights_gpu(float *weights_updates, float *variance, float *scales, int filters, int spatial);
 void batch_normalize_weights_bias_gpu(float *weights_gpu, float * bias_gpu, float *rolling_variance_gpu, float *rolling_mean_gpu, float *scale_gpu, 
-                                      float *variance_gpu, float *mean_gpu, int channel_size,int filter_size);
+                                      float *variance_gpu, float *mean_gpu, int channel_size,int filter_size, int infer);
 void backward_scale_quant_gpu(float *x_norm, float *weights_update, float *bias_update, float *mean, float *variance, float *rolling_variance,
                               int batch, int channel, int spatial, float *scale, float *scale_updates);
 void prune_gpu(int N, float * X, float * Y, float threhold,int INCY);
@@ -99,6 +99,7 @@ void backward_scale_gpu(float *x_norm, float *delta, int batch, int n, int size,
 void scale_bias_gpu(float *output, float *biases, int batch, int n, int size);
 void add_bias_gpu(float *output, float *biases, int batch, int n, int size);
 void backward_bias_gpu(float *bias_updates, float *delta, int batch, int n, int size);
+void rescale_output_gpu(float *output_gpu, float *rolling_variance_gpu, float *variance_gpu, int batch, int channel_size, int ft_size);
 
 void logistic_x_ent_gpu(int n, float *pred, float *truth, float *delta, float *error);
 void softmax_x_ent_gpu(int n, float *pred, float *truth, float *delta, float *error);

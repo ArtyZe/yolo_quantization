@@ -56,6 +56,8 @@ ACTIVATION get_activation(char *s)
     if (strcmp(s, "linear")==0) return LINEAR;
     if (strcmp(s, "ramp")==0) return RAMP;
     if (strcmp(s, "leaky")==0) return LEAKY;
+    if (strcmp(s, "leaky6")==0) return LEAKY6;
+    if (strcmp(s, "relu6")==0) return RELU6;
     if (strcmp(s, "tanh")==0) return TANH;
     if (strcmp(s, "stair")==0) return STAIR;
     printf("Couldn't find activation function %s, going with ReLU\n", s);
@@ -81,6 +83,10 @@ float activate(float x, ACTIVATION a)
             return relie_activate(x);
         case RAMP:
             return ramp_activate(x);
+        case LEAKY6:
+            return leaky6_activate(x);
+        case RELU6:
+            return relu6_activate(x);
         case LEAKY:
             return leaky_activate(x);
         case TANH:
@@ -124,6 +130,10 @@ float gradient(float x, ACTIVATION a)
             return relie_gradient(x);
         case RAMP:
             return ramp_gradient(x);
+        case LEAKY6:
+            return leaky6_gradient(x);
+        case RELU6:
+            return relu6_gradient(x);
         case LEAKY:
             return leaky_gradient(x);
         case TANH:

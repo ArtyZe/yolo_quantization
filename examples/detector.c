@@ -765,27 +765,28 @@ void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float 
 
     list *plist = get_paths("/workspace/ygao/benchmark/NOK/2007_test.txt");
     char **paths = (char **)list_to_array(plist);
-    int flag = 0;
     network *net;
     float prec[100] = {0};
     float recl[100] = {0};
     float ff11[100] = {0};
-    for(int index = 27; index < 28; ++index){
-            sprintf(weightfile, "backup/yolov3-tiny-mask_quant_full_%d0000.weights", index);
-            net = load_network_cfg(cfgfile, weightfile, close_quantization);
-            net = load_network_weights(cfgfile, weightfile, 0, net);
-            set_batch_network(net, 1);
+    char name[100] = {0};
+    sprintf(name, "test_quant/test_quant.txt");
+    FILE *fp = fopen(name, "a+");
+    for(int index = 50; index < 51; ++index){
+        // sprintf(weightfile, "backup/yolov3-tiny-mask_quant_per_channel_%d0000.weights", index);
+        sprintf(weightfile, "backup/yolov3-tiny-mask_quant_channelwise.backup");
+        net = load_network_cfg(cfgfile, weightfile, close_quantization);
+        net = load_network_weights(cfgfile, weightfile, 0, net);
+        set_batch_network(net, 1);
         #ifdef QUANTIZATION
         #ifndef GPU
             printf("\nQuantinization ...\n");
-            quantization_weights_and_activations(net);
+            // quantization_weights_and_activations(net);
+            quantization_weights_preprocess(net);
             printf("Quantinization Complete...\n\n"); 
         #endif
-        #endif
-        char name[100] = {0};
-        sprintf(name, "%d.txt", index);
-        FILE *fp = fopen(name, "a+"); 
-        for(float thre = 0.5; thre < 0.7; thre=thre+0.1){
+        #endif 
+        for(float thre = 0.1; thre < 0.7; thre=thre+0.1){
             int j, k;
 
             int m = plist->size;
@@ -803,32 +804,20 @@ void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float 
             image im, sized;
             for(i = 0; i < m; ++i){
                 printf("image: %d, thresh: %f, weights: %d\n", i, thre, index);
-                if(flag == 1){
-                    net = load_network_cfg(cfgfile, weightfile, close_quantization);
-                    net = load_network_weights(cfgfile, weightfile, 0, net);
-                    set_batch_network(net, 1);
-                    #ifdef QUANTIZATION
-                    #ifndef GPU
-                            printf("\nQuantinization ...\n");
-                            quantization_weights_and_activations(net);
-                            printf("Quantinization Complete...\n\n"); 
-                    #endif
-                    #endif
-                }
                 char *path = paths[i];
-                l = net->layers[net->n-1];
-
                 im = load_image_color(path,0,0);
                 sized = letterbox_image(im, net->w, net->h);
                 float *X = sized.data;
+                #ifdef QUANTIZATION
+                #ifndef GPU
+                quantization_activations_preprocess(net, X);
+                #endif
+                #endif
                 network_predict(net, X);
                 int nboxes = 0;
                 detection *dets = get_network_boxes(net, im.w, im.h, thre, hier_thresh, 0, 1, &nboxes);
                 printf("%d\n", nboxes);
-                // printf("-----------------------\n");
-                if (nms) do_nms_obj(dets, nboxes, 1, nms);
-                // if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
-                
+                if (nms) do_nms_obj(dets, nboxes, 1, nms);                
 
                 char labelpath[4096];
                 find_replace(path, "images", "labels", labelpath);
@@ -871,18 +860,19 @@ void validate_detector_f1(char *datacfg, char *cfgfile, char *weightfile, float 
                 free_image(sized);
                 free_detections(dets, nboxes);
                 free_net(net);
-                // 
+                // free(net);
                 prec[index] = 100.*TP/TP_FP;
                 recl[index] = 100.*TP/TP_FN;
                 ff11[index] = 100.*2*TP/(TP_FP+TP_FN);
                 
             }
             fprintf(fp, "index = %d, thresh = %f, recall = %f, precison = %f, f1 score = %f\n", index, thre, recl[index], prec[index], ff11[index]);
-            
+            printf("--------5\n");
         }
-        fclose(fp);
+        
         free(net);
     }
+    fclose(fp);
 }
 
 void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh, float hier_thresh, char *outfile, int fullscreen, int close_quantization)
@@ -895,13 +885,6 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
     network *net = load_network(cfgfile, weightfile, close_quantization);
     set_batch_network(net, 1);
     srand(2222222);
-#ifdef QUANTIZATION
-#ifndef GPU
-    printf("\nQuantinization ...\n");
-    quantization_weights_and_activations(net);
-    printf("Quantinization Complete...\n\n"); 
-#endif
-#endif
     double time;
     char buff[256];
     char *input = buff;
@@ -928,6 +911,14 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 
 
         float *X = sized.data;
+        net->input = X;
+#ifdef QUANTIZATION
+#ifndef GPU
+    // printf("\nQuantinization ...\n");
+    quantization_weights_and_activations(net);
+    // printf("Quantinization Complete...\n\n"); 
+#endif
+#endif
         time=what_time_is_it_now();
         network_predict(net, X);
         printf("%s: Predicted in %f seconds.\n", input, what_time_is_it_now()-time);

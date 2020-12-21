@@ -10,30 +10,50 @@ extern "C" {
 }
 
 __global__ void batch_normalize_weights_bias_kernel(float *weights, float * biases, float *rolling_variance, float *rolling_mean, float *scales, 
-                                                    float *variance_gpu, float *mean_gpu, int channel_size,int filter_size)
+                                                    float *variance_gpu, float *mean_gpu, int channel_size,int filter_size, int infer)
 {
     int i = (blockIdx.x + blockIdx.y*gridDim.x) * blockDim.x + threadIdx.x;
     if (i < channel_size){
-        if(variance_gpu[i] - rolling_variance[i] > 0.5*rolling_variance[i]){
-            // printf("the difference is %f\n", variance_gpu[i] - rolling_variance[i]);
-            rolling_variance[i] = variance_gpu[i];
-            rolling_mean[i] = mean_gpu[i];
-        }
-        biases[i] = biases[i] - scales[i] * rolling_mean[i] / (sqrtf(rolling_variance[i]) + .000001f);
+        // if(variance_gpu[i] - rolling_variance[i] > 0.5*rolling_variance[i]){
+        //     // printf("the difference is %f\n", variance_gpu[i] - rolling_variance[i]);
+        //     rolling_variance[i] = variance_gpu[i];
+        //     rolling_mean[i] = mean_gpu[i];
+        // }
+        // biases[i] = biases[i] - scales[i] * rolling_mean[i] / (sqrtf(rolling_variance[i]) + .000001f);
+        biases[i] = infer == 1 ? biases[i] - scales[i] * rolling_mean[i] / (sqrtf(rolling_variance[i]) + .000001f) : 
+                                 biases[i] - scales[i] * mean_gpu[i] / (sqrtf(variance_gpu[i]) + .000001f);
 
         int j;
         for (j = 0; j < filter_size; ++j) {
             int w_index = i*filter_size + j;
-            weights[w_index] = weights[w_index] * scales[i] / (sqrtf(rolling_variance[i]) + .000001f);
+            // weights[w_index] = weights[w_index] * scales[i] / (sqrtf(rolling_variance[i]) + .000001f);
+            weights[w_index] = infer == 1 ? weights[w_index] * scales[i] / (sqrtf(rolling_variance[i]) + .000001f) : weights[w_index] * scales[i] / (sqrtf(variance_gpu[i]) + .000001f);
         }
     }
 }
 
 void batch_normalize_weights_bias_gpu(float *weights_gpu, float * bias_gpu, float *rolling_variance_gpu, float *rolling_mean_gpu, float *scale_gpu, 
-                                      float *variance_gpu, float *mean_gpu, int channel_size,int filter_size){
+                                      float *variance_gpu, float *mean_gpu, int channel_size,int filter_size, int infer){
     int N = channel_size;
     batch_normalize_weights_bias_kernel<<<cuda_gridsize(N), BLOCK>>>(weights_gpu, bias_gpu, rolling_variance_gpu, rolling_mean_gpu, scale_gpu,
-                                                                     variance_gpu, mean_gpu, channel_size, filter_size);
+                                                                     variance_gpu, mean_gpu, channel_size, filter_size, infer);
+}
+
+__global__ void rescale_output_kernel(float *output_gpu, float *rolling_variance_gpu, float *variance_gpu, int batch, int channel_size, int ft_size)
+{
+    int i = (blockIdx.x + blockIdx.y*gridDim.x) * blockDim.x + threadIdx.x;
+    if (i < channel_size){
+        for (int j = 0; j < ft_size; ++j) {
+            int index = i*ft_size + j;
+            output_gpu[index] = output_gpu[index] * (sqrtf(rolling_variance_gpu[i]) + .000001f) / (sqrtf(variance_gpu[i]) + .000001f);
+        }
+    }
+}
+
+void rescale_output_gpu(float *output_gpu, float *rolling_variance_gpu, float *variance_gpu, int batch, int channel_size, int ft_size)
+{
+    int N = channel_size;
+    rescale_output_kernel<<<cuda_gridsize(N), BLOCK>>>(output_gpu, rolling_variance_gpu, variance_gpu, batch, channel_size, ft_size);
 }
 
 __global__ void prune_kernel(int N, float *weights,float *update_weights, float threshold, int INCX)
@@ -71,15 +91,18 @@ __global__ void backward_batch_normalize_weights_kernel(int N, float *weights_up
 {
     int i = (blockIdx.x + blockIdx.y*gridDim.x) * blockDim.x + threadIdx.x;
     if(i < N){
-        int index = i/spatial%filters;
-        weights_updates[i] = weights_updates[i]*scales[index]/(sqrt(variance[index]) + .000001f);
-            // weights_updates[weights_index] = weights_updates[weights_index]/(sqrt(variance[i]) + .000001f);
+        for(int j = 0; j < spatial; ++j){
+            int index = i*spatial + j;
+            weights_updates[index] = weights_updates[index]*scales[i]/(sqrt(variance[i]) + .000001f);
+                // weights_updates[weights_index] = weights_updates[weights_index]/(sqrt(variance[i]) + .000001f);
+        }
+        
 	}
 }
 
 void backward_batch_normalize_weights_gpu(float *weights_updates, float *variance, float *scales, int filters, int spatial)
 {
-    int N = filters*spatial;
+    int N = filters;
     backward_batch_normalize_weights_kernel<<<cuda_gridsize(N), BLOCK>>>(N, weights_updates, variance, scales, filters, spatial);
 }
 
@@ -92,7 +115,7 @@ __global__ void backward_scale_quant_kernel(int N, float *x_norm, float *weights
 			int weights_index = index*spatial + j;
             scale_updates[index] += weights_update[weights_index]*x_norm[weights_index]/(sqrt(rolling_variance[index]) + .000001f);              
         }
-        scale_updates[index] = scale_updates[index] - bias_update[index] *mean[index]/(sqrt(variance[index]) + .000001f);
+        // scale_updates[index] = scale_updates[index] - bias_update[index] *mean[index]/(sqrt(variance[index]) + .000001f);
     }
 }
 
@@ -162,6 +185,101 @@ void backward_scale_gpu(float *x_norm, float *delta, int batch, int n, int size,
     backward_scale_kernel<<<n, BLOCK>>>(x_norm, delta, batch, n, size, scale_updates);
     check_error(cudaPeekAtLastError());
 }
+
+// /*************************************************************************************************************************
+//                         This funtion is main to realize the fake quantization in the paper of
+
+//                                 "Quantization and Training of Neural Networks for Efficient 
+//                                         Integer-Arithmetic-Only Inference"
+                        
+//                          We propose an approach that simulates quantization effects in the 
+//                          forward pass of training. Backpropagation still happens as usual, 
+//                              and all weights and biases are stored in floating point
+//  *************************************************************************************************************************/
+//  __global__ void fake_quant_with_min_max_channelwise_kernel(int size_channel, float *input, uint8_t *input_int8, int size_feature, float *min_activ_value, float *max_activ_value, 
+//     float *quantzation_scale, uint8_t *quantization_zero_point, int func_type, float decay) 
+// {
+//     int i = (blockIdx.x + blockIdx.y*gridDim.x) * blockDim.x + threadIdx.x;
+//     if(i < size_channel){
+//         //Calculate min and max value of each kernel
+//         //because out_mul is calculate by input_mul and weights_mul, so I can only set size_channel to 1 for input because of gemm shape error
+//         float min_value = 0.0;
+//         float max_value = 0.0;
+//         int quant_min = QUANT_NEGATIVE_LIMIT; 
+//         int quant_max = QUANT_POSITIVE_LIMIT;
+//         for(int j = 0; j < size_feature; ++j){
+//             int index = i*size_feature+j;
+//             max_value = max(input[index], max_value);
+//             min_value = min(input[index], min_value);
+//         }
+//         //If this layer is activation, you need to update the min and max value with EMA 
+//         // if(func_type == INPUT_QUANT){
+//         //     printf("%s max = %.3f, min = %.3f\n", "Input", max_value, min_value);
+//         // }
+//         if(func_type == ACTIV_QUANT){
+//         // if(func_type == ACTIV_QUANT || func_type == INPUT_QUANT){
+//             const char* type_string = func_type == INPUT_QUANT ? "Input" : "Activ";
+//             if(min_activ_value[i] != 0 || max_activ_value[i] != 0){
+//                 min_activ_value[i] = min_activ_value[i] - ((min_activ_value[i] - min_value) * (1- decay));
+//                 max_activ_value[i] = max_activ_value[i] - ((max_activ_value[i] - max_value) * (1- decay));
+//             }else{
+//                 min_activ_value[i] = min_value;
+//                 max_activ_value[i] = max_value;
+//             }
+//             max_value = max_activ_value[i];
+//             min_value = min_activ_value[i];
+//             // printf("%s max = %.3f, min = %.3f\n", type_string, max_value, min_value);
+//         }
+//         // If min and max are both zero, we should just return zero.
+//         if(min_value == 0 && max_value == 0){
+//             // printf("max = %.3f, min = %.3f, \n",max_value, min_value);
+//             assert(0);
+//         }
+//         float nudged_scale = 0.0f;
+//         // this is really nudge function
+//         const float quant_min_float = (float)quant_min;
+//         const float quant_max_float = (float)quant_max;
+//         assert(quant_min_float != quant_max_float);
+//         nudged_scale = (max_value - min_value) / (quant_max_float - quant_min_float);
+//         assert(nudged_scale != 0);
+//         const double initial_zero_point = quant_min_float - min_value / nudged_scale;
+//         // Store the S3 for activ quantization, convenient for us to quantization input in inference process
+//         quantzation_scale[i] = nudged_scale;
+//         uint8_t nudged_zero_point = 0;
+//         if (initial_zero_point <= quant_min) {
+//             nudged_zero_point = quant_min;
+//         } else if (initial_zero_point >= quant_max) {
+//             nudged_zero_point = quant_max;
+//         } else {
+//             nudged_zero_point = round(initial_zero_point);
+//         }
+//         quantization_zero_point[i] = nudged_zero_point;
+//         float nudged_min = (quant_min_float - nudged_zero_point) * nudged_scale;
+//         float nudged_max = (quant_max_float - nudged_zero_point) * nudged_scale;
+//         const float nudged_scale_repl = nudged_scale;
+//         for(int k = 0; k < size_feature; ++k){
+//             int index_kernel = i*size_feature+k;
+//             float temp_input = input[index_kernel];
+//             float clamped = max(nudged_min, min(nudged_max, temp_input));
+//             float clamped_shifted = clamped - nudged_min;
+//             if(func_type == WEIGHT_QUANT){
+//                 input_int8[index_kernel] = round(clamped_shifted / nudged_scale_repl);
+//             }
+//             int nudged_value = clamp(round(clamped_shifted / nudged_scale_repl), QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+//             float temp = nudged_value * nudged_scale_repl + nudged_min;
+//             input[index_kernel] = temp;
+//         }
+//     }
+// }
+
+// __global__ void fake_quant_with_min_max_channelwise_gpu(int size_channel, float *input, uint8_t *input_int8, int size_feature, float *min_activ_value, float *max_activ_value, 
+//     float *quantzation_scale, uint8_t *quantization_zero_point, int func_type, float decay)
+// {
+//     int n = size_channel;
+//     fake_quant_with_min_max_channelwise_kernel<<<n, BLOCK>>>(size_channel, input, input_int8, size_feature, min_activ_value, max_activ_value, 
+//                                                             quantzation_scale, quantization_zero_point, func_type, decay);
+//     check_error(cudaPeekAtLastError());
+// }
 
 __global__ void add_bias_kernel(float *output, float *biases, int batch, int n, int size)
 {

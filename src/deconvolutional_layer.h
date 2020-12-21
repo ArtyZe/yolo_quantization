@@ -10,7 +10,7 @@
 #ifdef GPU
 void forward_deconvolutional_layer_gpu(layer l, network net);
 void backward_deconvolutional_layer_gpu(layer l, network net);
-void update_deconvolutional_layer_gpu(layer l, update_args a);
+void update_deconvolutional_layer_gpu(layer l, update_args a, network net);
 void push_deconvolutional_layer(layer l);
 void pull_deconvolutional_layer(layer l);
 #endif
