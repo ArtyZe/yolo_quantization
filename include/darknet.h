@@ -182,9 +182,15 @@ struct layer{
 
     float *M;
     int32_t *M0;
+    int32_t M0_lut0;
+    int M0_right_shift_lut0;
+    int32_t M0_lut1;
+    int M0_right_shift_lut1;
     double *M_value;
     int *M0_right_shift;
     double *M0_right_shift_value;
+    int *M0_right_shift_lut;
+    double *M0_right_shift_value_lut;
     int active_limit;
 
     uint8_t * input_uint8;

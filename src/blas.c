@@ -314,6 +314,12 @@ void quantization_weights_and_activations(network *net)
                     l->M0_right_shift_value[ii] = pow(2, -l->M0_right_shift[ii]);
                     l->M_value[ii] = pow(2, -31) * l->M0[ii];
                 }
+                if(l->activation == LEAKY){
+                    float rescale_lut0 = 0.1;
+                    // quant_multi_bigger_than_one_to_scale_and_shift(rescale_lut0, &l->M0_lut0, &l->M0_right_shift_lut0);
+                    // quant_multi_bigger_than_one_to_scale_and_shift(rescale_lut1, &l->M0_lut1, &l->M0_right_shift_lut1);
+                    quant_multi_smaller_than_one_to_scale_and_shift(rescale_lut0, &l->M0_lut0, &l->M0_right_shift_lut0);
+                }
                 l->active_limit = round(l->activ_data_uint8_zero_point[0]);
 
                 printf("layer:  %2d, type:  [%5s], input quant scale:   %f, input quant zero_p:   %d\n", l->count, "CONV", l->input_data_uint8_scales[0], l->input_data_uint8_zero_point[0]);

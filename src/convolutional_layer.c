@@ -574,7 +574,8 @@ void forward_convolutional_layer_quant_inputi_outputi_mkl(convolutional_layer l,
             switch (l.activation)
             {
             case LEAKY:
-                output_quant_value = output_quant_value < 0 ? (round(output_quant_value*0.1) + l.activ_data_uint8_zero_point[0]): (output_quant_value + l.activ_data_uint8_zero_point[0]); 
+                // output_quant_value = output_quant_value < 0 ? (round(output_quant_value*0.1) + l.activ_data_uint8_zero_point[0]): (output_quant_value + l.activ_data_uint8_zero_point[0]); 
+                output_quant_value = output_quant_value <= 0 ? (round(output_quant_value*pow(2, -31)*l.M0_lut0*pow(2,-l.M0_right_shift_lut0)) + l.activ_data_uint8_zero_point[0]): (output_quant_value + l.activ_data_uint8_zero_point[0]); 
                 break;
             case LINEAR:
                 output_quant_value = output_quant_value + l.activ_data_uint8_zero_point[0]; 
