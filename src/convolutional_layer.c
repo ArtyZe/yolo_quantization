@@ -580,8 +580,8 @@ void forward_convolutional_layer_quant_inputi_outputi_mkl(convolutional_layer l,
             case LINEAR:
                 output_quant_value = output_quant_value + l.activ_data_uint8_zero_point[0]; 
                 break;
-            case RELU:
-                output_quant_value = output_quant_value < l.active_limit ? l.activ_data_uint8_zero_point[0]: (output_quant_value + l.activ_data_uint8_zero_point[0]); 
+            case RELU6:
+                output_quant_value = output_quant_value <= 0 ? l.activ_data_uint8_zero_point[0]: (output_quant_value + l.activ_data_uint8_zero_point[0]); 
                 break;
             default:
                 break;
