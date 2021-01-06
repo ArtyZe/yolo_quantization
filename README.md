@@ -1,7 +1,7 @@
 # yolo_quantization
 ![GitHub stars](https://img.shields.io/github/stars/ArtyZe/yolo_quantization) ![GitHub forks](https://img.shields.io/github/forks/ArtyZe/yolo_quantization)  ![GitHub watchers](https://img.shields.io/github/watchers/ArtyZe/yolo_quantization)
 
-![](https://img.shields.io/badge/Linux CPU-Pass-blue.svg)
+![](https://img.shields.io/badge/LinuxCPU-Pass-brightgreen.svg?style=plastic) ![](https://img.shields.io/badge/LinuxGPU-Pass-brightgreen.svg?style=plastic) ![](https://img.shields.io/badge/WindowsCPU-Pass-brightgreen.svg?style=plastic)
 
 The code is to quantization **float32 network** of darknet to **uint8 network** based of paper:
 
@@ -19,7 +19,7 @@ Train:
 
 	./darknet detector train cfg/voc_nok.data cfg/yolov3-tiny-mask_quant.cfg [pretrain weights file I gave to you(default in cfg folder)]
 
-Test:
+[Linux] Test:
 >**set GPU=0 in Makefile**
 	
 	make -j8
