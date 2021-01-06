@@ -1,4 +1,6 @@
 # yolo_quantization
+![GitHub stars](https://img.shields.io/github/stars/ArtyZe/yolo_quantization) ![GitHub forks](https://img.shields.io/github/forks/ArtyZe/yolo_quantization)  ![GitHub watchers](https://img.shields.io/github/watchers/ArtyZe/yolo_quantization)  
+![Linux CPU](pass) ![Linux GPU](pass) ![Windows CPU](pass)
 The code is to quantization **float32 network** of darknet to **uint8 network** based of paper:
 
 >**Quantization and Training of Neural Networks for Efficient**
@@ -7,6 +9,7 @@ The code is to quantization **float32 network** of darknet to **uint8 network** 
 
 [The Commond to Run My Project]
 =========
+[Linux]
 Train: 
 >**set GPU=1 in Makefile**
 
@@ -21,9 +24,10 @@ Test:
 	
 	./darknet detector test cfg/voc_nok.data cfg/yolov3-tiny_quant.cfg [weights file] [image path]
 
-Windows:
+[Windows]
+Test:
 
-	yolo_quantization detector test D:/study/code_quant/yolo_quantization/cfg/voc_nok.data D:/study/code_quant/yolo_quantization/cfg/yolov3_tiny_quant_channelwise.cfg D:/study/code_quant/yolo_quantization/cfg/yolov3_tiny_quant_channelwise.backup D:/study/code_quant/yolo_quantization/test_image/000044.jpg
+	yolo_quantization detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
 
 [Pretrain Cfg file and Weights file]
 =========
