@@ -2,7 +2,7 @@
 ![GitHub stars](https://img.shields.io/github/stars/ArtyZe/yolo_quantization) ![GitHub forks](https://img.shields.io/github/forks/ArtyZe/yolo_quantization)  ![GitHub watchers](https://img.shields.io/github/watchers/ArtyZe/yolo_quantization)  
 ![GitHub Linux CPU](pass) ![GitHub Linux GPU](pass) ![GitHub Windows CPU](pass)
 
-https://img.shields.io/badge/<Linux CPU>-<Pass>-<blue>.svg
+![](https://img.shields.io/badge/Linux CPU-Pass-blue.svg)
 
 The code is to quantization **float32 network** of darknet to **uint8 network** based of paper:
 
