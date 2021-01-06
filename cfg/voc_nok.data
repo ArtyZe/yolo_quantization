@@ -1,5 +1,5 @@
 classes= 5
 train  = /workspace/ygao/benchmark/NOK/2007_test.txt
 valid  = /workspace/ygao/benchmark/NOK/2007_test.txt
-names = /workspace/ygao/benchmark/NOK/voc.names
+names = D:\study\code_quant\yolo_quantization\cfg/voc.names
 backup = backup

@@ -15,17 +15,9 @@
 #define TWO_PI 6.2831853071795864769252866f
 
 double what_time_is_it_now();
-void shuffle(void *arr, size_t n, size_t size);
-void sorta_shuffle(void *arr, size_t n, size_t size, size_t sections);
 void free_ptrs(void **ptrs, int n);
 int alphanum_to_int(char c);
 char int_to_alphanum(int i);
-int read_int(int fd);
-void write_int(int fd, int n);
-void read_all(int fd, char *buffer, size_t bytes);
-void write_all(int fd, char *buffer, size_t bytes);
-int read_all_fail(int fd, char *buffer, size_t bytes);
-int write_all_fail(int fd, char *buffer, size_t bytes);
 void find_replace(char *str, char *orig, char *rep, char *output);
 void malloc_error();
 void file_error(char *s);

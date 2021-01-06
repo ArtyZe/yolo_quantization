@@ -7,9 +7,6 @@
 #include "gemm.h"
 #include <stdio.h>
 #include <time.h>
-// #include "cblas.h"
-#include "mkl.h"
-#include "mkl_cblas.h"
 #ifdef OPENBLAS
     #include "mkl.h"
     #include "mkl_cblas.h"
@@ -259,6 +256,7 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
     l.biases_bn_backup = calloc(l.n, sizeof(float));
     if(l.layer_quant_flag && !l.close_quantization){
         l.forward = forward_convolutional_layer_quant_inputi_outputi_mkl;
+		//l.forward = forward_convolutional_layer_quant_inputi_outputi;
     }else if (l.layer_quant_flag && l.close_quantization){
         l.forward = forward_convolutional_layer_quant_inputf_outputf;
     }else{

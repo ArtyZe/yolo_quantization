@@ -2,11 +2,10 @@ PRUNE=0
 GPU=0
 CUDNN=0
 OPENCV=0
-OPENMP=0
 OPENBLAS=1
 DEBUG=0
 MULTI_CORE=0
-AVX=1
+AVX=0
 QUANTIZATION=1
 
 ARCH= -gencode arch=compute_30,code=sm_30 \
@@ -23,6 +22,7 @@ SLIB=libdarknet.so
 ALIB=libdarknet.a
 EXEC=darknet
 OBJDIR=./obj/
+# fill it if you have installed mkl yourself
 MKLROOT=/workspace/ygao/software_backup/intel/mkl
 
 # INCLUDEDIRS =  /I $(inc) /I $(mkl) /I $(LIBS)
@@ -54,14 +54,13 @@ endif
 
 ifeq ($(OPENBLAS), 1) 
 COMMON+= -DMKL_ILP64
-CFLAGS+= -DMKL_ILP64 -m64 -I${MKLROOT}/include
+CFLAGS+= -DMKL_ILP64 -m64 
 # LDFLAGS+= -L/data/OpenBLAS -lopenblas
 # COMMON+= `pkg-config --cflags opencv` 
-COMMON+= -I/workspace/ygao/software_backup/intel/mkl/include -I/workspace/ygao/software_backup/intel/include -I/workspace/ygao/software_backup/intel/compilers_and_libraries_2020.4.304/linux/mkl/include
-LDFLAGS+= -L/workspace/ygao/software_backup/intel/mkl/lib/intel64 -L/workspace/ygao/software_backup/intel/mkl/lib/intel64_lin -L/workspace/ygao/software_backup/intel/lib/intel64 -L/workspace/ygao/software_backup/intel/lib/intel64_lin -lmkl_rt 
-# LDFLAGS+= -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm -ldl
-# LDFLAGS+= -Wl,--no-as-needed -lmkl_intel_ilp64 -lmkl_core -lgomp -lpthread -lm -ldl -lmkl_gnu_thread 
-# COMMON+= `pkg-config --cflags opencv`
+COMMON+= -I3rdParty/linux/mkl/include 
+LDFLAGS+= -L3rdParty/linux/mkl/lib/intel64  -lmkl_rt
+# -L/workspace/ygao/software_backup/intel/mkl/lib/intel64_lin -L/workspace/ygao/software_backup/intel/lib/intel64 -L/workspace/ygao/software_backup/intel/lib/intel64_lin
+# -L/workspace/ygao/software_backup/intel/mkl/lib/intel64 -I${MKLROOT}/include
 endif
 
 ifeq ($(GPU), 1) 
@@ -95,6 +94,7 @@ ifeq ($(MULTI_CORE), 1)
 CFLAGS+= -fopenmp
 LDFLAGS+= -lgomp
 endif
+
 OBJ=gemm.o utils.o cuda.o deconvolutional_layer.o convolutional_layer.o image.o activations.o im2col.o col2im.o blas.o crop_layer.o maxpool_layer.o softmax_layer.o data.o matrix.o network.o connected_layer.o parser.o option_list.o detection_layer.o route_layer.o upsample_layer.o box.o normalization_layer.o avgpool_layer.o layer.o local_layer.o shortcut_layer.o logistic_layer.o activation_layer.o batchnorm_layer.o region_layer.o reorg_layer.o tree.o  yolo_layer.o image_opencv.o list.o
 EXECOBJA=segmenter.o detector.o darknet.o
 ifeq ($(GPU), 1) 

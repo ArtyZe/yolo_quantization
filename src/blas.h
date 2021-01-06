@@ -13,9 +13,6 @@ void time_random_matrix(int TA, int TB, int m, int k, int n);
 void reorg_cpu(float *x, int w, int h, int c, int batch, int stride, int forward, float *out);
 
 void test_blas();
-
-void inter_cpu(int NX, float *X, int NY, float *Y, int B, float *OUT);
-void deinter_cpu(int NX, float *X, int NY, float *Y, int B, float *OUT);
 void mult_add_into_cpu(int N, float *X, float *Y, float *Z);
 
 void const_cpu(int N, float ALPHA, float *X, int INCX);

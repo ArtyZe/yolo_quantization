@@ -6,9 +6,11 @@
 #include <unistd.h>
 #include <float.h>
 #include <limits.h>
-#include <time.h>
+#ifdef WIN32
+#include "gettimeofday.h"
+#else
 #include <sys/time.h>
-
+#endif
 #include "utils.h"
 
 
@@ -69,29 +71,6 @@ int *read_map(char *filename)
         map[n-1] = atoi(str);
     }
     return map;
-}
-
-void sorta_shuffle(void *arr, size_t n, size_t size, size_t sections)
-{
-    size_t i;
-    for(i = 0; i < sections; ++i){
-        size_t start = n*i/sections;
-        size_t end = n*(i+1)/sections;
-        size_t num = end-start;
-        shuffle(arr+(start*size), num, size);
-    }
-}
-
-void shuffle(void *arr, size_t n, size_t size)
-{
-    size_t i;
-    void *swp = calloc(1, size);
-    for(i = 0; i < n-1; ++i){
-        size_t j = i + rand()/(RAND_MAX / (n-i)+1);
-        memcpy(swp,          arr+(j*size), size);
-        memcpy(arr+(j*size), arr+(i*size), size);
-        memcpy(arr+(i*size), swp,          size);
-    }
 }
 
 int *random_index_order(int min, int max)
@@ -362,63 +341,6 @@ char *fgetl(FILE *fp)
 
     return line;
 }
-
-int read_int(int fd)
-{
-    int n = 0;
-    int next = read(fd, &n, sizeof(int));
-    if(next <= 0) return -1;
-    return n;
-}
-
-void write_int(int fd, int n)
-{
-    int next = write(fd, &n, sizeof(int));
-    if(next <= 0) error("read failed");
-}
-
-int read_all_fail(int fd, char *buffer, size_t bytes)
-{
-    size_t n = 0;
-    while(n < bytes){
-        int next = read(fd, buffer + n, bytes-n);
-        if(next <= 0) return 1;
-        n += next;
-    }
-    return 0;
-}
-
-int write_all_fail(int fd, char *buffer, size_t bytes)
-{
-    size_t n = 0;
-    while(n < bytes){
-        size_t next = write(fd, buffer + n, bytes-n);
-        if(next <= 0) return 1;
-        n += next;
-    }
-    return 0;
-}
-
-void read_all(int fd, char *buffer, size_t bytes)
-{
-    size_t n = 0;
-    while(n < bytes){
-        int next = read(fd, buffer + n, bytes-n);
-        if(next <= 0) error("read failed");
-        n += next;
-    }
-}
-
-void write_all(int fd, char *buffer, size_t bytes)
-{
-    size_t n = 0;
-    while(n < bytes){
-        size_t next = write(fd, buffer + n, bytes-n);
-        if(next <= 0) error("write failed");
-        n += next;
-    }
-}
-
 
 char *copy_string(char *s)
 {

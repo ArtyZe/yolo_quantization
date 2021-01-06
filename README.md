@@ -21,6 +21,10 @@ Test:
 	
 	./darknet detector test cfg/voc_nok.data cfg/yolov3-tiny_quant.cfg [weights file] [image path]
 
+Windows:
+
+	yolo_quantization detector test D:/study/code_quant/yolo_quantization/cfg/voc_nok.data D:/study/code_quant/yolo_quantization/cfg/yolov3_tiny_quant_channelwise.cfg D:/study/code_quant/yolo_quantization/cfg/yolov3_tiny_quant_channelwise.backup D:/study/code_quant/yolo_quantization/test_image/000044.jpg
+
 [Pretrain Cfg file and Weights file]
 =========
 	https://pan.baidu.com/s/16_ULXdNPmIhoEmu7jXmkmQ 

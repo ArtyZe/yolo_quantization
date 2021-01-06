@@ -248,8 +248,6 @@ int main(int argc, char **argv)
         int fullscreen = find_arg(argc, argv, "-fullscreen");
         int quantize = find_int_arg(argc, argv, "-quantization", 0);
         test_detector("cfg/coco.data", argv[2], argv[3], filename, thresh, .5, outfile, fullscreen, quantize);
-    } else if (0 == strcmp(argv[1], "segmenter")){
-        run_segmenter(argc, argv);
     } else {
         printf("Not an option: %s\n", argv[1]);
     }
