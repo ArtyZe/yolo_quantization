@@ -1,6 +1,5 @@
 # yolo_quantization
-![GitHub stars](https://img.shields.io/github/stars/ArtyZe/yolo_quantization) ![GitHub forks](https://img.shields.io/github/forks/ArtyZe/yolo_quantization)  ![GitHub watchers](https://img.shields.io/github/watchers/ArtyZe/yolo_quantization)  
-![GitHub Linux CPU](pass) ![GitHub Linux GPU](pass) ![GitHub Windows CPU](pass)
+![GitHub stars](https://img.shields.io/github/stars/ArtyZe/yolo_quantization) ![GitHub forks](https://img.shields.io/github/forks/ArtyZe/yolo_quantization)  ![GitHub watchers](https://img.shields.io/github/watchers/ArtyZe/yolo_quantization)
 
 ![](https://img.shields.io/badge/Linux CPU-Pass-blue.svg)
 
