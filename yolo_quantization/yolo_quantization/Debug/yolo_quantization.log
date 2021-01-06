@@ -1,0 +1,90 @@
+﻿生成启动时间为 2021.01.06 14:51:59。
+     1>项目“D:\study\code_quant\yolo_quantization\yolo_quantization\yolo_quantization\yolo_quantization.vcxproj”在节点 2 上(Build 个目标)。
+     1>ClCompile:
+         D:\install\VC\bin\CL.exe /c /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\3rdparty\windows\pthreads\include /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\include /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\src /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\3rdparty\windows\profiling /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\3rdparty\windows\stb\include /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\3rdparty\linux\mkl\include /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _UNICODE /D UNICODE /UOPENCV /UCUDNN /UGPU /UMULTI_CORE /UAVX /UPRUNE /UDEBUG /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Yc"stdafx.h" /Fp"Debug\yolo_quantization.pch" /Fo"Debug\\" /Fd"Debug\vc140.pdb" /Gd /TP /analyze- /errorReport:prompt stdafx.cpp
+         stdafx.cpp
+         D:\install\VC\bin\CL.exe /c /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\3rdparty\windows\pthreads\include /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\include /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\src /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\3rdparty\windows\profiling /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\3rdparty\windows\stb\include /ID:\study\code_quant\yolo_quantization\yolo_quantization\..\3rdparty\linux\mkl\include /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _UNICODE /D UNICODE /UOPENCV /UCUDNN /UGPU /UMULTI_CORE /UAVX /UPRUNE /UDEBUG /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Yu"stdafx.h" /Fp"Debug\yolo_quantization.pch" /Fo"Debug\\" /Fd"Debug\vc140.pdb" /Gd /TC /analyze- /errorReport:prompt ..\..\src\activations.c ..\..\src\activation_layer.c ..\..\src\avgpool_layer.c ..\..\src\batchnorm_layer.c ..\..\src\blas.c ..\..\src\box.c ..\..\src\col2im.c ..\..\src\connected_layer.c ..\..\src\convolutional_layer.c ..\..\src\crop_layer.c ..\..\src\cuda.c ..\..\src\data.c ..\..\src\deconvolutional_layer.c ..\..\src\detection_layer.c ..\..\src\dropout_layer.c ..\..\src\gemm.c ..\..\src\im2col.c ..\..\src\image.c ..\..\src\l2norm_layer.c ..\..\src\layer.c ..\..\src\list.c ..\..\src\local_layer.c ..\..\src\logistic_layer.c ..\..\src\matrix.c ..\..\src\maxpool_layer.c ..\..\src\network.c ..\..\src\normalization_layer.c ..\..\src\option_list.c ..\..\src\parser.c ..\..\src\region_layer.c ..\..\src\reorg_layer.c ..\..\src\route_layer.c ..\..\src\shortcut_layer.c ..\..\src\softmax_layer.c ..\..\src\tree.c ..\..\src\upsample_layer.c ..\..\src\utils.c ..\..\src\yolo_layer.c
+         yolo_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\yolo_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         utils.c
+     1>d:\study\code_quant\yolo_quantization\src\utils.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         upsample_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\upsample_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         tree.c
+     1>d:\study\code_quant\yolo_quantization\src\tree.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         softmax_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\softmax_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         shortcut_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\shortcut_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         route_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\route_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         reorg_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\reorg_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         region_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\region_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         parser.c
+     1>d:\study\code_quant\yolo_quantization\src\parser.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         option_list.c
+     1>d:\study\code_quant\yolo_quantization\src\option_list.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         normalization_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\normalization_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         network.c
+     1>d:\study\code_quant\yolo_quantization\src\network.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         maxpool_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\maxpool_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         matrix.c
+     1>d:\study\code_quant\yolo_quantization\src\matrix.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         logistic_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\logistic_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         local_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\local_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         list.c
+     1>d:\study\code_quant\yolo_quantization\src\list.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         layer.c
+     1>d:\study\code_quant\yolo_quantization\src\layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         l2norm_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\l2norm_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         正在生成代码...
+         正在编译...
+         image.c
+     1>d:\study\code_quant\yolo_quantization\src\image.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         im2col.c
+     1>d:\study\code_quant\yolo_quantization\src\im2col.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         gemm.c
+     1>d:\study\code_quant\yolo_quantization\src\gemm.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         dropout_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\dropout_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         detection_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\detection_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         deconvolutional_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\deconvolutional_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         data.c
+     1>d:\study\code_quant\yolo_quantization\src\data.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         cuda.c
+     1>d:\study\code_quant\yolo_quantization\src\cuda.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         crop_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\crop_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         convolutional_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\convolutional_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         connected_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\connected_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         col2im.c
+     1>d:\study\code_quant\yolo_quantization\src\col2im.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         box.c
+     1>d:\study\code_quant\yolo_quantization\src\box.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         blas.c
+     1>d:\study\code_quant\yolo_quantization\src\blas.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         batchnorm_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\batchnorm_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         avgpool_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\avgpool_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         activation_layer.c
+     1>d:\study\code_quant\yolo_quantization\src\activation_layer.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         activations.c
+     1>d:\study\code_quant\yolo_quantization\src\activations.c : fatal error C1853: “Debug\yolo_quantization.pch”预编译头文件来自编译器的早期版本，或者预编译头为 C++ 而在 C 中使用它(或相反)
+         正在生成代码...
+     1>已完成生成项目“D:\study\code_quant\yolo_quantization\yolo_quantization\yolo_quantization\yolo_quantization.vcxproj”(Build 个目标)的操作 - 失败。
+
+生成失败。
+
+已用时间 00:00:02.29
