@@ -1,6 +1,8 @@
 # yolo_quantization
 ![GitHub stars](https://img.shields.io/github/stars/ArtyZe/yolo_quantization) ![GitHub forks](https://img.shields.io/github/forks/ArtyZe/yolo_quantization)  ![GitHub watchers](https://img.shields.io/github/watchers/ArtyZe/yolo_quantization)  
-![Linux CPU](pass) ![Linux GPU](pass) ![Windows CPU](pass)
+![GitHub Linux CPU](pass) ![GitHub Linux GPU](pass) ![GitHub Windows CPU](pass)
+
+
 The code is to quantization **float32 network** of darknet to **uint8 network** based of paper:
 
 >**Quantization and Training of Neural Networks for Efficient**
