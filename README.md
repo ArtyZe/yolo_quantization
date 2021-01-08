@@ -27,14 +27,27 @@ Train:
 	./darknet detector test cfg/voc_nok.data cfg/yolov3-tiny_quant.cfg [weights file] [image path]
 
 [Windows]
+
+	If your system is `windows10`, need to install `mkl` lib yourself
+	1. download mkl exe file https://pan.baidu.com/s/149Cvx4fSo0NkAla49Gh_Ig 
+	password: az65
+	2. install mkl and mkl will match your vs
+	3. set include and lib path in vs (for example: D:\install\mkl_win\compilers_and_libraries_2020.0.166\windows\mkl) 
+	4. delete all .dll files in the folder of "yolo_quantization\yolo_quantization\x64\Debug"
+	5. now if it still doesn't work, please contact me gaoyang917528@163.com
+   
 Test:
 
-	yolo_quantization detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
+	yolo_quantization.exe detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
 
 [Pretrain Cfg file and Weights file]
 =========
 	https://pan.baidu.com/s/16_ULXdNPmIhoEmu7jXmkmQ 
 	password: qy8a 
+	
+	mkl dll link:
+	https://pan.baidu.com/s/1vl8W7gp1MS_E_owgc6zrkA
+	password: v37i
 	
 [Performance]
 =========
