@@ -29,7 +29,8 @@ Train:
 [Windows]
 
 	If your system is `windows10` and want to use mkl, need to install `mkl` lib yourself
-	1. download mkl exe file https://pan.baidu.com/s/149Cvx4fSo0NkAla49Gh_Ig 
+	follow this blog: < https://www.cnblogs.com/Mayfly-nymph/p/11617651.html >
+	1. download mkl exe file < https://pan.baidu.com/s/149Cvx4fSo0NkAla49Gh_Ig >
 	password: az65
 	2. install mkl and mkl will match your vs
 	3. set include and lib path in vs (for example: D:\install\mkl_win\compilers_and_libraries_2020.0.166\windows\mkl) 
@@ -38,7 +39,7 @@ Train:
    
 Test:
 	1. close macro OPENBLAS in vs, else open OPENBLAS to use mkl
-	yolo_quantization.exe detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
+	2. yolo_quantization.exe detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
 
 [Pretrain Cfg file and Weights file]
 =========
