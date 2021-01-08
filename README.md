@@ -38,7 +38,9 @@ Train:
 	5. now if it still doesn't work, please contact me gaoyang917528@163.com
    
 Test:
+	
 	1. close macro OPENBLAS in vs, else open OPENBLAS to use mkl
+   
 	2. yolo_quantization.exe detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
 
 [Pretrain Cfg file and Weights file]
