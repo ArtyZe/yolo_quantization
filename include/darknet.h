@@ -222,6 +222,7 @@ struct layer{
     int16_t * weights_int16;
     int16_t * input_int16;
     int16_t * zero_point_int16;
+    uint8_t* zero_point_uint8;
     //end quantization
 
     int batch_normalize;

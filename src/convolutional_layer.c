@@ -250,15 +250,21 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
     l.weights_int16 = calloc(l.nweights, sizeof(int16_t));
     l.input_int16 = calloc(l.inputs, sizeof(int16_t));
     l.zero_point_int16 = calloc(l.nweights, sizeof(int16_t));
+    l.zero_point_uint8 = calloc(l.nweights, sizeof(uint8_t));
 
     l.weights_bn_backup = calloc(l.c*l.n*l.size*l.size, sizeof(float));
     l.output_bn_backup = calloc(l.n*l.out_w*l.out_h, sizeof(float));
     l.biases_bn_backup = calloc(l.n, sizeof(float));
     if(l.layer_quant_flag && !l.close_quantization){
+#ifdef OPENBLAS
         l.forward = forward_convolutional_layer_quant_inputi_outputi_mkl;
-		//l.forward = forward_convolutional_layer_quant_inputi_outputi;
+#else
+		l.forward = forward_convolutional_layer_quant_inputi_outputi;
+#endif
     }else if (l.layer_quant_flag && l.close_quantization){
+#ifdef OPENBLAS
         l.forward = forward_convolutional_layer_quant_inputf_outputf;
+#endif
     }else{
         l.forward = forward_convolutional_layer_nobn;
     }
@@ -518,6 +524,7 @@ void backward_bias(float *bias_updates, float *delta, int batch, int n, int size
 }
 
 #ifdef QUANTIZATION
+#ifdef OPENBLAS
 void forward_convolutional_layer_quant_inputi_outputi_mkl(convolutional_layer l, network net)
 {
     int i, j, s, t;
@@ -596,7 +603,94 @@ void forward_convolutional_layer_quant_inputi_outputi_mkl(convolutional_layer l,
         }
     }
 }
+void forward_convolutional_layer_quant_inputf_outputf(convolutional_layer l, network net)
+{
+    int i, j;
+    int batch_index, groups_index;
+    // y = conv(x) --> q1*q2
+    int m = l.n / l.groups;
+    int k = l.size * l.size * l.c / l.groups;
+    int n = l.out_h * l.out_w;
+    net.workspace_quant16 = calloc(1, l.out_h * l.out_w * l.size * l.size * l.c * sizeof(int16_t));
+    for (int input_index = 0; input_index < l.c * l.w * l.h; ++input_index) {
+        int16_t input_quant_value = round(net.input[input_index] / l.input_data_uint8_scales[0]) + l.input_data_uint8_zero_point[0];
+        l.input_int16[input_index] = input_quant_value;
+    }
+    // for (int input_index = 0; input_index < l.c*l.w*l.h; ++input_index) {
+    //     l.input_int16[input_index] = (int16_t)net.input_uint8[input_index];
+    // }
+    for (batch_index = 0; batch_index < l.batch; batch_index++) {
+        for (groups_index = 0; groups_index < l.groups; groups_index++) {
+            int16_t* a16 = l.weights_int16 + groups_index * l.nweights / l.groups;
+            int16_t* b16 = (int16_t*)net.workspace_quant16;
+            int32_t* c = l.output_int32 + (batch_index * l.groups + groups_index) * n * m;
+            int16_t* im16 = l.input_int16 + (batch_index * l.groups + groups_index) * l.c / l.groups * l.h * l.w;
+            if (l.size == 1) {
+                b16 = im16;
+            }
+            else {
+                im2col_cpu_int16(im16, l.c / l.groups, l.h, l.w, l.size, l.stride, l.pad, b16, l.input_data_uint8_zero_point[0]);    // here
+            }
+            int co = 0;
+            cblas_gemm_s16s16s32(CblasRowMajor, CblasNoTrans,
+                CblasNoTrans, CblasFixOffset,
+                m, n, k,
+                1, a16, k, 0,
+                b16, n, 0, 1,
+                c, n, &co);
 
+            cblas_gemm_s16s16s32(CblasRowMajor, CblasNoTrans,
+                CblasNoTrans, CblasFixOffset,
+                m, n, k,
+                -1, l.zero_point_int16, k, 0,
+                b16, n, 0, 1,
+                c, n, &co);
+        }
+    }
+    // dequant
+    int num = 0, num_b = 0, temppp;
+    printf("active limit = %d\n", l.active_limit);
+    for (i = 0; i < l.n; ++i) {
+        for (j = 0; j < l.out_w * l.out_h; ++j) {
+            int out_index = i * l.out_w * l.out_h + j;
+            // int64_t output_quant_value = l.output_int32[out_index] + l.biases_int32[i];
+            // l.output[out_index] = output_quant_value * rescale;
+            int64_t temp_64bit = (l.output_int32[out_index] + l.biases_int32[i]) * l.M_value[i];
+            int32_t output_quant_value = temp_64bit * l.M0_right_shift_value[i];
+            switch (l.activation)
+            {
+            case LEAKY:
+                temppp = output_quant_value < 0 ? (round(output_quant_value * 0.1) + l.activ_data_uint8_zero_point[0]) : (output_quant_value + l.activ_data_uint8_zero_point[0]);
+                if (temppp < 0) {
+                    num_b++;
+                }
+                l.output_uint8_final[out_index] = clamp(temppp, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+                break;
+            case LINEAR:
+                if (output_quant_value + l.activ_data_uint8_zero_point[0] < 0) {
+                    num_b++;
+                }
+                temppp = output_quant_value + l.activ_data_uint8_zero_point[0];
+                l.output_uint8_final[out_index] = clamp(temppp, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
+                break;
+            case RELU:
+                output_quant_value = output_quant_value < 0 ? l.activ_data_uint8_zero_point[0] : (output_quant_value + l.activ_data_uint8_zero_point[0]);
+                break;
+            default:
+                printf("rong way!!!!\n");
+                break;
+            }
+            int output_temp = (l.output_uint8_final[out_index] - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+            if (output_temp < 0 || output_temp > 255) {
+                // if(output_temp < 0){
+                num++;
+            }
+            l.output[out_index] = (l.output_uint8_final[out_index] - l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
+        }
+    }
+    printf("layer %d, invalid uint8 num is %d\n", l.count, num);
+}
+#endif
 void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, network net)
 {
     int i, j, s, t;
@@ -620,25 +714,15 @@ void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, net
             } else {
                 im2col_cpu_uint8(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b, l.input_data_uint8_zero_point[0]);    // here
             }
-            // #pragma omp parallel for
-            for (int kk = 0; kk < l.out_c; ++kk){ 
-                for (int ss = 0; ss < l.out_w*l.out_h; ++ss){
-                    int index = kk * l.out_w*l.out_h + ss;
-                    for (int tt = 0; tt < l.c*l.size*l.size; ++tt){
-                        l.input_sum_int[index] += b[tt*l.out_w*l.out_h+ss];
-                    }
-                    l.input_sum_int[index] = l.input_sum_int[index] * l.weight_data_uint8_zero_point[kk];
-                }
-            }
             // 0.29s for whole net forward
             gemm_nn_uint8_int32_te(m, n, k, 1, a, k, b, n, 0, c, n);
             // cblas_gemm_s8u8s32(layout, transA, transB, offsetc, m, n, k, alpha,
             //         a, lda, ao, b, ldb, bo, beta, c, ldc, &co);
-            gemm_nn_uint8_int32_te(m, n, k, -1, l.weight_data_uint8_zero_point, k, b, n, 1, c, n);
+            gemm_nn_uint8_int32_te(m, n, k, -1, l.zero_point_uint8, k, b, n, 1, c, n);
         }
 	}
     // // y_i = alpha1 * conv(x) --> M*(nz1z2-z1a2-z2a1+q1q2) + z3
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (i = 0; i < l.out_c; ++i) {
         for (j = 0; j < l.out_w*l.out_h; ++j){
             int out_index = i*l.out_w*l.out_h + j;
@@ -656,6 +740,9 @@ void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, net
             case RELU:
                 l.output_uint8_final[out_index] = output_quant_value + l.activ_data_uint8_zero_point[0]; 
                 break;
+            case RELU6:
+                l.output_uint8_final[out_index] = output_quant_value <= 0 ? l.activ_data_uint8_zero_point[0] : (output_quant_value + l.activ_data_uint8_zero_point[0]);
+                break;
             default:
                 break;
             }
@@ -671,93 +758,6 @@ void forward_convolutional_layer_quant_inputi_outputi(convolutional_layer l, net
             }
         }
     }
-}
-
-void forward_convolutional_layer_quant_inputf_outputf(convolutional_layer l, network net)
-{
-    int i, j;
-    int batch_index, groups_index;
-    // y = conv(x) --> q1*q2
-    int m = l.n/l.groups;
-    int k = l.size*l.size*l.c/l.groups;
-    int n = l.out_h*l.out_w;
-    net.workspace_quant16 = calloc(1, l.out_h*l.out_w*l.size*l.size*l.c*sizeof(int16_t));
-    for (int input_index = 0; input_index < l.c*l.w*l.h; ++input_index) {
-        int16_t input_quant_value = round(net.input[input_index] / l.input_data_uint8_scales[0]) + l.input_data_uint8_zero_point[0];
-        l.input_int16[input_index] = input_quant_value;
-    }
-    // for (int input_index = 0; input_index < l.c*l.w*l.h; ++input_index) {
-    //     l.input_int16[input_index] = (int16_t)net.input_uint8[input_index];
-    // }
-    for(batch_index = 0;batch_index < l.batch; batch_index++){
-        for(groups_index = 0;groups_index < l.groups; groups_index++){
-            int16_t *a16 = l.weights_int16 + groups_index*l.nweights/l.groups;
-            int16_t *b16 = (int16_t *)net.workspace_quant16;
-            int32_t *c = l.output_int32 + (batch_index*l.groups + groups_index)*n*m;
-            int16_t *im16 =  l.input_int16 + (batch_index*l.groups + groups_index)*l.c/l.groups*l.h*l.w;
-            if (l.size == 1) {
-                b16 = im16;
-            } else {
-                im2col_cpu_int16(im16, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b16, l.input_data_uint8_zero_point[0]);    // here
-            }
-            int co = 0;
-            cblas_gemm_s16s16s32(CblasRowMajor, CblasNoTrans, 
-                                CblasNoTrans, CblasFixOffset, 
-                                m, n, k, 
-                                1, a16, k, 0,
-                                b16, n, 0, 1, 
-                                c, n, &co);
-
-            cblas_gemm_s16s16s32(CblasRowMajor, CblasNoTrans, 
-                                CblasNoTrans, CblasFixOffset, 
-                                m, n, k, 
-                                -1, l.zero_point_int16, k, 0,
-                                b16, n, 0, 1, 
-                                c, n, &co);
-        }
-	}
-    // dequant
-    int num = 0, num_b = 0, temppp;
-    printf("active limit = %d\n", l.active_limit);
-    for (i = 0; i < l.n; ++i) {
-        for (j = 0; j < l.out_w*l.out_h; ++j){
-            int out_index = i*l.out_w*l.out_h + j;
-            // int64_t output_quant_value = l.output_int32[out_index] + l.biases_int32[i];
-            // l.output[out_index] = output_quant_value * rescale;
-            int64_t temp_64bit = (l.output_int32[out_index] + l.biases_int32[i])*l.M_value[i];
-            int32_t output_quant_value = temp_64bit*l.M0_right_shift_value[i];            
-            switch (l.activation)
-            {
-            case LEAKY:
-                temppp = output_quant_value < 0 ? (round(output_quant_value*0.1) + l.activ_data_uint8_zero_point[0]): (output_quant_value + l.activ_data_uint8_zero_point[0]);
-                if(temppp < 0){
-                    num_b++;  
-                }
-                l.output_uint8_final[out_index] = clamp(temppp, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
-                break;
-            case LINEAR:
-                if(output_quant_value + l.activ_data_uint8_zero_point[0] < 0){
-                    num_b++;  
-                }
-                temppp = output_quant_value + l.activ_data_uint8_zero_point[0]; 
-                l.output_uint8_final[out_index] = clamp(temppp, QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
-                break;
-            case RELU:
-                output_quant_value = output_quant_value < 0 ? l.activ_data_uint8_zero_point[0]: (output_quant_value + l.activ_data_uint8_zero_point[0]); 
-                break;
-            default:
-                printf("rong way!!!!\n");
-                break;
-            }
-            int output_temp = (l.output_uint8_final[out_index] -  l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
-            if(output_temp < 0 || output_temp > 255){
-            // if(output_temp < 0){
-                num++;
-            }
-            l.output[out_index] = (l.output_uint8_final[out_index] -  l.activ_data_uint8_zero_point[0]) * l.activ_data_uint8_scales[0];
-        }
-    }
-    printf("layer %d, invalid uint8 num is %d\n",l.count ,num );
 }
 #endif
 

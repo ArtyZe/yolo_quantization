@@ -295,6 +295,7 @@ void quantization_weights_and_activations(network *net)
                         // l->weights_uint8[index] = clamp(l->weights_uint8[index], QUANT_NEGATIVE_LIMIT, QUANT_POSITIVE_LIMIT);
                         l->weights_int16[index] = (int16_t)l->weights_uint8[index];
                         l->zero_point_int16[index] = l->weight_data_uint8_zero_point[j];
+                        l->zero_point_uint8[index] = l->weight_data_uint8_zero_point[j];
                     }
                 }
                 if (i > 0)

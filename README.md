@@ -21,14 +21,14 @@ Train:
 
 [Linux] Test:
 >**set GPU=0 in Makefile**
-	
+**set OPENBLAS=0 in Makefile if do not use mkl**	
 	make -j8
 	
 	./darknet detector test cfg/voc_nok.data cfg/yolov3-tiny_quant.cfg [weights file] [image path]
 
 [Windows]
 
-	If your system is `windows10`, need to install `mkl` lib yourself
+	If your system is `windows10` and want to use mkl, need to install `mkl` lib yourself
 	1. download mkl exe file https://pan.baidu.com/s/149Cvx4fSo0NkAla49Gh_Ig 
 	password: az65
 	2. install mkl and mkl will match your vs
@@ -37,7 +37,7 @@ Train:
 	5. now if it still doesn't work, please contact me gaoyang917528@163.com
    
 Test:
-
+	1. close macro OPENBLAS in vs, else open OPENBLAS to use mkl
 	yolo_quantization.exe detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
 
 [Pretrain Cfg file and Weights file]
