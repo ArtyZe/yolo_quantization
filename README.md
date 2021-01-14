@@ -16,8 +16,8 @@ MKL:
 If you want to use mkl to accelerate, you need to install mkl by yourself, else do not need to install mkl
 
 1. Download and Install MKL:	
-	https://pan.baidu.com/s/149Cvx4fSo0NkAla49Gh_Ig
-	password: az65
+	https://pan.baidu.com/s/1vl8W7gp1MS_E_owgc6zrkA
+	password: v37i
 2. Fit MKL
 	1. For Linux, change `MKLROOT` to your own mkl install path
 	2. For Windows, fit mkl path in setting of vs, follow this blog if you have no experience: https://www.cnblogs.com/Mayfly-nymph/p/11617651.html
@@ -49,10 +49,6 @@ Test:
 =========
 	https://pan.baidu.com/s/16_ULXdNPmIhoEmu7jXmkmQ 
 	password: qy8a 
-	
-	mkl dll link:
-	https://pan.baidu.com/s/1vl8W7gp1MS_E_owgc6zrkA
-	password: v37i
 	
 [Performance]
 =========
