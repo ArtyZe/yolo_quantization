@@ -19,7 +19,7 @@ If you want to use mkl to accelerate, you need to install mkl by yourself, else 
 	https://pan.baidu.com/s/1vl8W7gp1MS_E_owgc6zrkA
 	password: v37i
 2. Fit MKL
-	1. For Linux, change `MKLROOT` to your own mkl install path
+	1. For Linux, change `MKLROOT` in Makefile to your own mkl install path
 	2. For Windows, fit mkl path in setting of vs, follow this blog if you have no experience: https://www.cnblogs.com/Mayfly-nymph/p/11617651.html
 
 [The Commond to Run My Project]
