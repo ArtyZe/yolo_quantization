@@ -9,6 +9,19 @@ The code is to quantization **float32 network** of darknet to **uint8 network** 
 
 < https://arxiv.org/abs/1712.05877 >
 
+[Requirments]
+=========
+MKL:
+
+If you want to use mkl to accelerate, you need to install mkl by yourself, else do not need to install mkl
+
+1. Download and Install MKL:	
+	https://pan.baidu.com/s/149Cvx4fSo0NkAla49Gh_Ig
+	password: az65
+2. Fit MKL
+	1. For Linux, change `MKLROOT` to your own mkl install path
+	2. For Windows, fit mkl path in setting of vs, follow this blog if you have no experience: https://www.cnblogs.com/Mayfly-nymph/p/11617651.html
+
 [The Commond to Run My Project]
 =========
 [Linux]
@@ -20,28 +33,17 @@ Train:
 	./darknet detector train cfg/voc_nok.data cfg/yolov3-tiny-mask_quant.cfg [pretrain weights file I gave to you(default in cfg folder)]
 
 [Linux] Test:
->**set GPU=0 in Makefile**
-**set OPENBLAS=0 in Makefile if do not use mkl**	
+>**set GPU=0, QUANTIZATION=1 in Makefile and OPENBLAS=1 if you use mkl**
 	make -j8
 	
 	./darknet detector test cfg/voc_nok.data cfg/yolov3-tiny_quant.cfg [weights file] [image path]
 
-[Windows]
-
-	If your system is `windows10` and want to use mkl, need to install `mkl` lib yourself
-	follow this blog: < https://www.cnblogs.com/Mayfly-nymph/p/11617651.html >
-	1. download mkl exe file < https://pan.baidu.com/s/149Cvx4fSo0NkAla49Gh_Ig >
-	password: az65
-	2. install mkl and mkl will match your vs
-	3. set include and lib path in vs (for example: D:\install\mkl_win\compilers_and_libraries_2020.0.166\windows\mkl) 
-	4. delete all .dll files in the folder of "yolo_quantization\yolo_quantization\x64\Debug"
-	5. now if it still doesn't work, please contact me gaoyang917528@163.com
-   
+[Windows]   
 Test:
 	
-	1. close macro OPENBLAS in vs, else open OPENBLAS to use mkl
-   
-	2. yolo_quantization.exe detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
+    1. close macro OPENBLAS in vs, else open OPENBLAS to use mkl
+
+    2. yolo_quantization.exe detector test [abs path to data file] [abs path to cfg file] [abs path to weights file] [abs path to image file]
 
 [Pretrain Cfg file and Weights file]
 =========

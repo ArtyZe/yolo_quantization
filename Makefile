@@ -2,11 +2,14 @@ PRUNE=0
 GPU=0
 CUDNN=0
 OPENCV=0
-OPENBLAS=1
+OPENBLAS=0
 DEBUG=0
 MULTI_CORE=0
 AVX=0
 QUANTIZATION=1
+
+# fill it if you have installed mkl yourself
+MKLROOT=/workspace/ygao/software_backup/intel/mkl
 
 ARCH= -gencode arch=compute_30,code=sm_30 \
       -gencode arch=compute_35,code=sm_35 \
@@ -22,8 +25,6 @@ SLIB=libdarknet.so
 ALIB=libdarknet.a
 EXEC=darknet
 OBJDIR=./obj/
-# fill it if you have installed mkl yourself
-MKLROOT=/workspace/ygao/software_backup/intel/mkl
 
 # INCLUDEDIRS =  /I $(inc) /I $(mkl) /I $(LIBS)
 
@@ -53,14 +54,12 @@ COMMON+= `pkg-config --cflags opencv`
 endif
 
 ifeq ($(OPENBLAS), 1) 
-COMMON+= -DMKL_ILP64
-CFLAGS+= -DMKL_ILP64 -m64 
+COMMON+= -DOPENBLAS
+CFLAGS+= -DOPENBLAS -m64 
 # LDFLAGS+= -L/data/OpenBLAS -lopenblas
 # COMMON+= `pkg-config --cflags opencv` 
-COMMON+= -I3rdParty/linux/mkl/include 
-LDFLAGS+= -L3rdParty/linux/mkl/lib/intel64  -lmkl_rt
-# -L/workspace/ygao/software_backup/intel/mkl/lib/intel64_lin -L/workspace/ygao/software_backup/intel/lib/intel64 -L/workspace/ygao/software_backup/intel/lib/intel64_lin
-# -L/workspace/ygao/software_backup/intel/mkl/lib/intel64 -I${MKLROOT}/include
+COMMON+= -I${MKLROOT}/include
+LDFLAGS+= -L$(MKLROOT)/lib/intel64_lin  -lmkl_rt
 endif
 
 ifeq ($(GPU), 1) 
